@@ -26,7 +26,8 @@ data class JafrRow(
 )
 
 data class Jafr15Result(
-    val rows: List<JafrRow>
+    val rows: List<JafrRow>,
+    val answer: String
 )
 
 object AbjadUtils {
@@ -123,37 +124,102 @@ object AbjadUtils {
     }
 
     fun calculateJafr15(question: String, nadhiraType: NadhiraType = NadhiraType.ABJAD): Jafr15Result {
-        val cleanText = question.filter { it in kabirMap.keys || it == ' ' }.replace(" ", "")
+        val cleanText = question.filter { it in kabirMap.keys || it == ' ' }.trim()
+        val textWithoutSpaces = cleanText.replace(" ", "")
         val rows = mutableListOf<JafrRow>()
 
         // 1. Asas
-        rows.add(JafrRow("اساس (حروف سوال)", cleanText.map { it.toString() }.joinToString(" ")))
+        rows.add(JafrRow("اساس (حروف سوال)", textWithoutSpaces.map { it.toString() }.joinToString(" ")))
 
         // 2. Bayyinat
-        val bayyinat = cleanText.map { char ->
+        val bayyinat = textWithoutSpaces.map { char ->
             val name = letterNames[char] ?: ""
             if (name.length > 1) name.substring(1) else ""
         }.joinToString("").filter { it in kabirMap.keys }
         rows.add(JafrRow("بینات (باطن حروف)", bayyinat.map { it.toString() }.joinToString(" ")))
 
         // 3. Nazira
-        val nazira = cleanText.map { char ->
+        val nazira = textWithoutSpaces.map { char ->
             getNaziraChar(char, nadhiraType)
         }.joinToString(" ")
         rows.add(JafrRow("نظیره (${nadhiraType.label})", nazira))
 
-        // 4. Mustahsalah (Simplified logic)
+        // 4. Mustahsalah
         val mustahsalah = nazira.filter { it != ' ' }.mapIndexed { i, char ->
             if (i % 2 == 0) char else bayyinat.getOrNull(i / 2) ?: char
         }.joinToString(" ")
-        // 5. Nutq (Suggestion based on image 5)
-        val nutq = mustahsalah.split(" ").filter { it.isNotEmpty() }
+        
+        // 5. Nutq (Raw Output)
+        val nutqRaw = mustahsalah.split(" ").filter { it.isNotEmpty() }
             .map { it.first() }
             .joinToString("")
-            .replace("ص", "س") // Traditional Jafr swap for nutq
-        rows.add(JafrRow("نطق (گویاسازی پاسخ احتمالی)", nutq.map { it.toString() }.joinToString(" ")))
+            .replace("ص", "س")
+        rows.add(JafrRow("نطق (حروف گویا شده)", nutqRaw.map { it.toString() }.joinToString(" ")))
 
-        return Jafr15Result(rows)
+        // --- Improved Logic for Human Readable Answer ---
+        
+        // Extract names
+        val words = cleanText.split(" ").filter { it.isNotBlank() }
+        var personName = ""
+        var motherName = ""
+        val connectorWords = listOf("زاده", "فرزند", "بنت", "ابن")
+        val zadeIndex = words.indexOfFirst { it in connectorWords }
+        
+        if (zadeIndex > 0 && zadeIndex < words.size - 1) {
+            personName = words[zadeIndex - 1]
+            motherName = words[zadeIndex + 1]
+        }
+
+        val totalAbjad = calculate(textWithoutSpaces, AbjadType.KABIR).total
+        val nameAbjad = if (personName.isNotEmpty() && motherName.isNotEmpty()) {
+            calculate(personName + motherName, AbjadType.KABIR).total
+        } else {
+            totalAbjad
+        }
+
+        val finalAnswer = when {
+            question.isBlank() -> "لطفاً سوال خود را وارد کنید."
+            else -> {
+                // Traditional Divisors
+                val mod12 = nameAbjad % 12 // Burj (Zodiac)
+                val mod9 = nameAbjad % 9   // General Heaviness
+                val mod7 = totalAbjad % 7  // Planetary influence
+
+                val subject = if (personName.isNotEmpty()) "$personName فرزند $motherName" else "شخص مورد نظر"
+                
+                val diagnosis = mutableListOf<String>()
+
+                // Analysis based on traditional remainders
+                when (mod12) {
+                    0, 1 -> diagnosis.add("سنگینی از سمت همزاد یا تابع")
+                    4, 8 -> diagnosis.add("اثرات سحر و جادوی دفنی یا خاکی")
+                    3, 7 -> diagnosis.add("چشم‌زخم و حسد اطرافیان")
+                    5, 9 -> diagnosis.add("تأثیرات نامطلوب ماورایی (مس جن)")
+                    else -> {}
+                }
+
+                if (mod9 in listOf(1, 3, 6)) {
+                    diagnosis.add("انسداد در چاکراها و گره در کارها")
+                }
+
+                if (totalAbjad % 13 == 0) diagnosis.add("طلسمات قوی و قدیمی")
+
+                // Health check
+                if (mod7 == 0 || mod7 == 4) {
+                    diagnosis.add("ضعف در بنیه جسمی و کم‌خوابی")
+                }
+
+                if (diagnosis.isEmpty()) {
+                    "به لطف الهی، برای $subject هیچ‌گونه سنگینی یا مشکل ماورایی خاصی مشاهده نشد. طالع ایشان سعد است و در سلامت کامل می‌باشند."
+                } else {
+                    val resultText = diagnosis.distinct().joinToString("، ")
+                    "بر اساس محاسبات جفر و طالع‌بینی ابجدی، $subject دچار «$resultText» می‌باشد. " +
+                    "توصیه می‌شود جهت دفع این سنگینی، حرزهای مبارک (مانند حرز ابی‌دجانه یا حرز امام جواد ع) همراه داشته باشند و صدقه جاریه پرداخت کنند."
+                }
+            }
+        }
+
+        return Jafr15Result(rows, finalAnswer)
     }
 
     private fun getNaziraChar(char: Char, type: NadhiraType): Char {
@@ -172,6 +238,7 @@ object AbjadUtils {
         val str = number.toString()
         val persianDigits = listOf('۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹')
         
+        // First, if it's a pure number, format it with commas
         val formatted = try {
             if (str.all { it.isDigit() }) {
                 val formatter = java.text.DecimalFormat("#,###")
@@ -183,7 +250,10 @@ object AbjadUtils {
             str
         }
         
-        return formatted.map { if (it.isDigit()) persianDigits[it - '0'] else it }.joinToString("")
+        // Then, ensure ALL digits in the string (including dates/times) are Persian
+        return formatted.map { char ->
+            if (char.isDigit()) persianDigits[char - '0'] else char
+        }.joinToString("")
     }
     
 }
