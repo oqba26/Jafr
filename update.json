@@ -1,6 +1,6 @@
 {
   "versionCode": 2,
-  "versionName": "1.1",
-  "url": "https://github.com/oqba26/Jafr/releases/download/v1.1/app-release.apk",
-  "releaseNotes": "تغییرات این نسخه:\n- بهبود رابط کاربری دیالوگ‌ها\n- رفع مشکل دکمه بازگشت\n- اضافه شدن سیستم آپدیت خودکار"
+  "versionName": "1.1.0",
+  "url": "https://github.com/oqba26/Jafr/releases/download/v1.1.0/Jafr.v1.1.0.apk",
+  "releaseNotes": "• اضافه شدن سیستم به‌روزرسانی داخلی\n• بهبود امنیت نصب برنامه‌ها\n• رفع باگ‌های جزئی"
 }
