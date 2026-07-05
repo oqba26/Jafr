@@ -9,6 +9,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.Environment
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
@@ -64,6 +65,7 @@ class UpdateManager(private val context: Context) {
     }
 
     fun downloadAndInstall(url: String, fileName: String) {
+        Toast.makeText(context, "در حال شروع دانلود به‌روزرسانی...", Toast.LENGTH_SHORT).show()
         val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         val uri = url.toUri()
         
@@ -97,15 +99,39 @@ class UpdateManager(private val context: Context) {
 
     private fun installApk(fileName: String) {
         val apkFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
-        if (!apkFile.exists()) return
-
-        val contentUri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", apkFile)
-
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(contentUri, "application/vnd.android.package-archive")
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+        if (!apkFile.exists()) {
+            Toast.makeText(context, "فایل نصب پیدا نشد!", Toast.LENGTH_SHORT).show()
+            return
         }
-        context.startActivity(intent)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (!context.packageManager.canRequestPackageInstalls()) {
+                Toast.makeText(context, "لطفاً اجازه نصب برنامه را صادر کنید", Toast.LENGTH_LONG).show()
+                val intent = Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                    data = "package:${context.packageName}".toUri()
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(intent)
+                return
+            }
+        }
+
+        try {
+            val contentUri = FileProvider.getUriForFile(
+                context, 
+                "com.oqba26.jafr.fileprovider",
+                apkFile
+            )
+
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(contentUri, "application/vnd.android.package-archive")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(context, "خطا در اجرای فایل نصب", Toast.LENGTH_SHORT).show()
+            e.printStackTrace()
+        }
     }
 
     private fun isNetworkAvailable(): Boolean {
