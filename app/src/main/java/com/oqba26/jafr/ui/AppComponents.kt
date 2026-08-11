@@ -66,29 +66,58 @@ fun AppBottomBar(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun JafrRowCard(row: JafrRow) {
+    val isFinal = row.title.contains("نهایی") || row.title.contains("مستحصله")
+    val letters = row.letters.split("  ").filter { it.isNotBlank() }
+    
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isFinal) 6.dp else 2.dp),
+        colors = if (isFinal) CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        ) else CardDefaults.cardColors(),
+        border = if (isFinal) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
                 text = row.title,
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
+                color = if (isFinal) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
                 modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Right
+                textAlign = TextAlign.Right,
+                fontWeight = if (isFinal) FontWeight.ExtraBold else FontWeight.Normal
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = row.letters,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center,
-                letterSpacing = 4.sp
-            )
+                horizontalArrangement = Arrangement.Center,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                letters.forEach { letter ->
+                    Box(
+                        modifier = Modifier
+                            .padding(2.dp)
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(
+                                if (isFinal) MaterialTheme.colorScheme.primary 
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = letter,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isFinal) MaterialTheme.colorScheme.onPrimary 
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
         }
     }
 }

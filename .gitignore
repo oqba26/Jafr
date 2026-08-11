@@ -1,5 +1,7 @@
 *.iml
 .gradle
+/.kotlin
+/.freebuff
 /local.properties
 /.idea/caches
 /.idea/libraries
@@ -13,6 +15,7 @@
 .externalNativeBuild
 .cxx
 local.properties
+keystore.properties
 /app/release/
 *.apk
 *.jks

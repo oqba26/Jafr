@@ -1,0 +1,98 @@
+name: Android Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Set up Gradle (caching + wrapper validation)
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Create Keystore
+        run: |
+          printf "%s" "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/release-key.jks
+
+      - name: Build Release APK
+        env:
+          RELEASE_STORE_FILE: release-key.jks
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: ./gradlew :app:assembleRelease
+
+      - name: Rename APK
+        run: |
+          mv app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/Jafr-${{ github.ref_name }}.apk
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v3
+        with:
+          files: app/build/outputs/apk/release/Jafr-${{ github.ref_name }}.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── به‌روزرسانی خودکار update.json در همین ریپو (master) ──────────
+      # گوشی‌ها update.json و APK را از همین ریپو (بدون احراز هویت) می‌گیرند:
+      #   https://raw.githubusercontent.com/oqba26/Jafr/master/update.json
+      #   https://github.com/oqba26/Jafr/releases/download/<tag>/Jafr-<tag>.apk
+      - name: Update update.json
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          VERSION_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          # 1) استخراج versionCode از build.gradle.kts
+          VERSION_CODE=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' app/build.gradle.kts | head -1)
+          echo "VERSION_CODE=$VERSION_CODE, VERSION_NAME=$VERSION_NAME"
+
+          # 2) ساخت update.json (url به APK داخل GitHub Release همین ریپو اشاره می‌کند)
+          python3 - "$VERSION_CODE" "$VERSION_NAME" <<'PYEOF'
+          import json, sys
+          vc, vn = int(sys.argv[1]), sys.argv[2]
+          data = {
+              "versionCode": vc,
+              "versionName": vn,
+              "url": f"https://github.com/oqba26/Jafr/releases/download/{vn}/Jafr-{vn}.apk",
+              "releaseNotes": "نسخه جدید برنامه منتشر شد",
+              "isForceUpdate": False,
+          }
+          with open("update.json", "w", encoding="utf-8") as f:
+              json.dump(data, f, ensure_ascii=False, indent=2)
+              f.write("\n")
+          PYEOF
+          cat update.json
+
+      - name: Commit update.json to master
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          VERSION_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout master
+          git add update.json
+          git commit -m "release ${VERSION_NAME}: update update.json" || echo "nothing to commit"
+          git push origin HEAD:master

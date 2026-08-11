@@ -11,14 +11,18 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.oqba26.jafr.model.Screen
 import com.oqba26.jafr.ui.*
 import com.oqba26.jafr.ui.theme.JafrTheme
 import com.oqba26.jafr.util.*
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -34,8 +38,12 @@ class MainActivity : ComponentActivity() {
             val customTypography = remember(fontFamily) { createTypography(fontFamily) }
             var currentScreen by remember { mutableStateOf(Screen.CALCULATOR) }
             var selectedType by remember { mutableStateOf(AbjadType.KABIR) }
+            var calculatorText by remember { mutableStateOf("") }
             var showExitDialog by remember { mutableStateOf(value = false) }
             var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+            var downloadProgress by remember { mutableFloatStateOf(0f) }
+            var isDownloading by remember { mutableStateOf(false) }
+            val scope = rememberCoroutineScope()
             val updateManager = remember { UpdateManager(this@MainActivity) }
 
             // Check for updates
@@ -108,11 +116,19 @@ class MainActivity : ComponentActivity() {
                                 Screen.CALCULATOR -> {
                                     AbjadCalculatorScreen(
                                         selectedType = selectedType,
-                                        historyManager = historyManager
+                                        historyManager = historyManager,
+                                        initialText = calculatorText,
+                                        onTextChange = { calculatorText = it }
                                     )
                                 }
                                 Screen.HISTORY -> {
-                                    HistoryScreen(historyManager = historyManager)
+                                    HistoryScreen(
+                                        historyManager = historyManager,
+                                        onItemClick = { text ->
+                                            calculatorText = text
+                                            currentScreen = Screen.CALCULATOR
+                                        }
+                                    )
                                 }
                                 Screen.SETTINGS -> {
                                     SettingsScreen(
@@ -135,17 +151,65 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    if (isDownloading) {
+                        Dialog(onDismissRequest = { }) {
+                            Surface(
+                                shape = MaterialTheme.shapes.extraLarge,
+                                tonalElevation = 6.dp,
+                                modifier = Modifier.fillMaxWidth().padding(16.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(24.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "در حال دانلود به‌روزرسانی...",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        modifier = Modifier.padding(bottom = 16.dp)
+                                    )
+                                    LinearProgressIndicator(
+                                        progress = { downloadProgress },
+                                        modifier = Modifier.fillMaxWidth().height(8.dp),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = "${(downloadProgress * 100).toInt()}%",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     updateInfo?.let { info ->
-                        ConfirmationDialog(
-                            title = "بروزرسانی جدید",
-                            message = "نسخه ${info.versionName} موجود است.\n\nتغییرات:\n${info.releaseNotes}",
-                            onConfirm = {
-                                updateManager.downloadAndInstall(info.url, "jafr-update-${info.versionName}.apk")
-                                updateInfo = null
+                        UpdateDialog(
+                            versionName = info.versionName,
+                            changeLog = info.releaseNotes,
+                            isForceUpdate = info.isForceUpdate,
+                            onDownloadRequest = {
+                                val fileName = "jafr-update-${info.versionName}.apk"
+                                val id = updateManager.downloadAndInstall(info.url, fileName)
+                                if (id != -1L) {
+                                    isDownloading = true
+                                    scope.launch {
+                                        updateManager.getDownloadProgress(id).collect { progress ->
+                                            downloadProgress = progress
+                                            if (progress >= 1f) {
+                                                isDownloading = false
+                                                if (!info.isForceUpdate) {
+                                                    updateInfo = null
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if (!info.isForceUpdate) {
+                                        updateInfo = null
+                                    }
+                                }
                             },
-                            onDismiss = { updateInfo = null },
-                            confirmText = "آپدیت",
-                            dismissText = "بعداً"
+                            onDismiss = { if (!info.isForceUpdate) updateInfo = null }
                         )
                     }
                 }

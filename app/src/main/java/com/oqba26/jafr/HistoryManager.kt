@@ -28,8 +28,17 @@ class HistoryManager(private val context: Context) {
             val type = object : TypeToken<List<HistoryItem>>() {}.type
             val currentList: MutableList<HistoryItem> = gson.fromJson(currentJson, type)
             
-            currentList.add(0, item)
-            preferences[historyKey] = gson.toJson(currentList)
+            // جلوگیری از افزودن مورد تکراری (متن، پاسخ و نوع یکسان)
+            val isDuplicate = currentList.take(10).any { 
+                it.text.trim() == item.text.trim() && 
+                it.answer == item.answer && 
+                it.type == item.type 
+            }
+            
+            if (!isDuplicate) {
+                currentList.add(0, item)
+                preferences[historyKey] = gson.toJson(currentList)
+            }
         }
     }
 
