@@ -27,7 +27,6 @@ import com.oqba26.jafr.util.PersianNumberVisualTransformation
 import saman.zamani.persiandate.PersianDate
 import saman.zamani.persiandate.PersianDateFormat
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
@@ -37,11 +36,19 @@ fun AbjadCalculatorScreen(
     historyManager: HistoryManager,
     modifier: Modifier = Modifier,
     initialText: String = "",
-    onTextChange: (String) -> Unit = {}
+    onTextChange: (String) -> Unit = {},
 ) {
-    var text by remember(initialText) { mutableStateOf(initialText) }
+    val prefix = "یا هو "
+    var text by remember(initialText) { 
+        mutableStateOf(
+            when {
+                initialText.isEmpty() -> prefix
+                initialText.startsWith(prefix) -> initialText
+                else -> prefix + initialText
+            }
+        ) 
+    }
     var selectedNadhira by remember { mutableStateOf(NadhiraType.ABJAD) }
-    val coroutineScope = rememberCoroutineScope()
     
     // همگام سازی متن داخلی با تغییرات بیرونی
     LaunchedEffect(text) {
@@ -51,9 +58,9 @@ fun AbjadCalculatorScreen(
     val names = remember(text) { AbjadUtils.extractNames(text) }
     val isQuestionComplete = remember(text, names) {
         val trimmed = text.trim()
-        (trimmed.endsWith("؟") || trimmed.endsWith("?")) && 
-        names.first != null && names.second != null && 
-        trimmed.length > 10 // حداقل طول برای جلوگیری از ورودی‌های خیلی کوتاه مثل «؟»
+        (trimmed.endsWith("؟") || trimmed.endsWith("?")) &&
+            (names.first != null) && (names.second != null) &&
+            (trimmed.length > 10) // حداقل طول برای جلوگیری از ورودی‌های خیلی کوتاه مثل «؟»
     }
 
     val result = remember(text, selectedType) { AbjadUtils.calculate(text, selectedType) }
@@ -68,8 +75,10 @@ fun AbjadCalculatorScreen(
     var lastSavedType by remember { mutableStateOf<AbjadType?>(null) }
 
     LaunchedEffect(jafrResult) {
-        val trimmedText = text.trim()
         if (jafrResult != null && isQuestionComplete && selectedType == AbjadType.JAFR_15) {
+            delay(1500.milliseconds) // وقفه ۱.۵ ثانیه‌ای برای اطمینان از پایان تایپ (Debounce)
+            val trimmedText = text.trim()
+            
             // فقط اگر متن (بدون فاصله‌های اضافه) یا نوع تغییر کرده باشد و قبلاً ذخیره نشده باشد
             if (trimmedText != lastSavedText || selectedType != lastSavedType) {
                 val pDate = PersianDate()
@@ -85,11 +94,9 @@ fun AbjadCalculatorScreen(
                     type = selectedType,
                     timestamp = timestamp
                 )
-                coroutineScope.launch {
-                    historyManager.addHistoryItem(currentItem)
-                    lastSavedText = trimmedText
-                    lastSavedType = selectedType
-                }
+                historyManager.addHistoryItem(currentItem)
+                lastSavedText = trimmedText
+                lastSavedType = selectedType
             }
         }
     }
@@ -122,7 +129,15 @@ fun AbjadCalculatorScreen(
 
         OutlinedTextField(
             value = text,
-            onValueChange = { text = it },
+            onValueChange = { newVal ->
+                text = if (newVal.length < prefix.length) {
+                    prefix
+                } else if (!newVal.startsWith(prefix)) {
+                    prefix + newVal.trimStart()
+                } else {
+                    newVal
+                }
+            },
             label = { Text("متن یا نام را وارد کنید") },
             modifier = Modifier.fillMaxWidth(),
             textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Right),
@@ -144,7 +159,7 @@ fun AbjadCalculatorScreen(
                     val taqsimat = jafrResult.taqsimat
                     if (taqsimat?.spell != null) {
                         item {
-                            SpellCard(taqsimat.spell!!, taqsimat.direction)
+                            SpellCard(taqsimat.spell, taqsimat.direction)
                         }
                     }
                     taqsimat?.topics?.forEach { topic ->
@@ -660,7 +675,48 @@ private fun SpellCard(spell: SpellAnalysis, direction: String) {
                 fontWeight = FontWeight.Bold
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            if (spell.bastLetters.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "بسط ملفوظی (نام حروف):",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f)
+                )
+                Text(
+                    text = spell.bastLetters.map { it.toString() }.joinToString(" "),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            if (spell.factorMustahsalah.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.1f)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(8.dp)) {
+                        Text(
+                            text = "نطق مستحصله عامل (جواب درونی):",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Text(
+                            text = spell.factorMustahsalah.map { it.toString() }.joinToString("  "),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "برج ${spell.factorBurj} | طبع ${spell.factorElement} | ${spell.factorGender} | کوکب ${spell.factorKawkab}",
                 style = MaterialTheme.typography.bodySmall

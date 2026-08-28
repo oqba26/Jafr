@@ -34,17 +34,31 @@ class MainActivity : ComponentActivity() {
         
         setContent {
             val selectedFont by settingsManager.selectedFont.collectAsState(initial = "vazirmatn")
+            val defaultTypeStr by settingsManager.defaultType.collectAsState(initial = "JAFR_15")
+            val defaultType = remember(defaultTypeStr) {
+                try {
+                    AbjadType.valueOf(defaultTypeStr)
+                } catch (_: Exception) {
+                    AbjadType.JAFR_15
+                }
+            }
+
             val fontFamily = remember(selectedFont) { getFontFamily(selectedFont) }
             val customTypography = remember(fontFamily) { createTypography(fontFamily) }
             var currentScreen by remember { mutableStateOf(Screen.CALCULATOR) }
-            var selectedType by remember { mutableStateOf(AbjadType.KABIR) }
+            var selectedType by remember { mutableStateOf(AbjadType.JAFR_15) }
             var calculatorText by remember { mutableStateOf("") }
             var showExitDialog by remember { mutableStateOf(value = false) }
             var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
             var downloadProgress by remember { mutableFloatStateOf(0f) }
-            var isDownloading by remember { mutableStateOf(false) }
+            var isDownloading by remember { mutableStateOf(value = false) }
             val scope = rememberCoroutineScope()
             val updateManager = remember { UpdateManager(this@MainActivity) }
+
+            // Update selectedType when defaultType changes
+            LaunchedEffect(defaultType) {
+                selectedType = defaultType
+            }
 
             // Check for updates
             LaunchedEffect(Unit) {
@@ -53,11 +67,11 @@ class MainActivity : ComponentActivity() {
 
             // Handle Back Press for Navigation and Exit
             BackHandler(enabled = true) {
-                if (currentScreen == Screen.CALCULATOR && selectedType == AbjadType.KABIR) {
+                if ((currentScreen == Screen.CALCULATOR) && (selectedType == defaultType)) {
                     showExitDialog = true
                 } else {
                     currentScreen = Screen.CALCULATOR
-                    selectedType = AbjadType.KABIR
+                    selectedType = defaultType
                 }
             }
 
@@ -94,7 +108,7 @@ class MainActivity : ComponentActivity() {
                                     containerColor = MaterialTheme.colorScheme.primary,
                                     titleContentColor = MaterialTheme.colorScheme.onPrimary,
                                     actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
+                                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
                                 )
                             )
                         },
@@ -118,8 +132,7 @@ class MainActivity : ComponentActivity() {
                                         selectedType = selectedType,
                                         historyManager = historyManager,
                                         initialText = calculatorText,
-                                        onTextChange = { calculatorText = it }
-                                    )
+                                    ) { calculatorText = it }
                                 }
                                 Screen.HISTORY -> {
                                     HistoryScreen(

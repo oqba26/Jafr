@@ -46,6 +46,8 @@ data class SpellAnalysis(
     val level: String,       // ضعیف / متوسط / قوی
     val verdict: String,
     val khalesLetters: String,
+    val bastLetters: String,
+    val factorMustahsalah: String,
     val factorBurj: String,
     val factorElement: String,
     val factorGender: String,
@@ -213,9 +215,9 @@ object AbjadUtils {
         var saad = 0
         var nahs = 0
         for (char in mustahsalah) {
-            when {
-                char in SAAD_LETTERS -> saad++
-                char in NAHS_LETTERS -> nahs++
+            when (char) {
+                in SAAD_LETTERS -> saad++
+                in NAHS_LETTERS -> nahs++
             }
         }
         return saad to nahs
@@ -261,7 +263,7 @@ object AbjadUtils {
         rows.add(JafrRow("سطر نهایی: مستحصله (استخراج نطق)", formatLetters(mustahsalah)))
 
         // --- تحلیل نهایی با سیستم تقسیمات جفری ---
-        val taqsimat = buildTaqsimat(question, cleanText, mustahsalah, mustahsalahByType, now)
+        val taqsimat = buildTaqsimat(question, cleanText, mustahsalah, mustahsalahByType, now, nadhiraType)
 
         return Jafr15Result(rows, formatAnswer(taqsimat), taqsimat)
     }
@@ -384,7 +386,8 @@ object AbjadUtils {
         cleanText: String,
         mustahsalah: String,
         mustahsalahByType: Map<NadhiraType, String>,
-        now: PersianDate?
+        now: PersianDate?,
+        nadhiraType: NadhiraType
     ): JafrTaqsimat {
         val total = calculate(cleanText, AbjadType.KABIR).total
 
@@ -515,7 +518,7 @@ object AbjadUtils {
             burj = burj,
             manzelDisposition = manzel.disposition,
             person = person,
-            direction = direction
+            nadhiraType = nadhiraType
         )
 
         // ماژول‌های موضوعی (ازدواج، سفر، کسب‌وکار، فرزند، بیماری، خرید و فروش)
@@ -572,7 +575,7 @@ object AbjadUtils {
             else -> "زهره"
         }
         val dayIdx = hourKawkabOrder.indexOf(dayRuler)
-        val hourKawkab = hourKawkabOrder[(dayIdx + now.getHour()) % 7]
+        val hourKawkab = hourKawkabOrder[(dayIdx + now.hour) % 7]
 
         val saadKawkab = setOf("مشتری", "زهره", "شمس", "قمر")
         val nahsKawkab = setOf("زحل", "مریخ")
@@ -597,7 +600,7 @@ object AbjadUtils {
         burj: String,
         manzelDisposition: String,
         person: PersonTale?,
-        direction: String
+        nadhiraType: NadhiraType
     ): SpellAnalysis? {
         val spellKeywords = listOf("طلسم", "سحر", "جادو", "چشم", "بست", "گره")
         if (spellKeywords.none { question.contains(it) }) return null
@@ -658,6 +661,13 @@ object AbjadUtils {
             val seen = mutableSetOf<Char>()
             for (c in cleanText) if (seen.add(c)) append(c)
         }
+        
+        // بسط ملفوظی (نام حروف)
+        val bast = khales.map { letterNames[it] ?: it.toString() }.joinToString("")
+        
+        // مستحصله حروف عامل
+        val factorMustahsalah = computeMustahsalah(khales, nadhiraType)
+
         val khalesAbjad = khales.sumOf { kabirMap[it] ?: 0 }
         val factorRem = khalesAbjad % 12
         val factorDayRem = khalesAbjad % 7
@@ -676,6 +686,8 @@ object AbjadUtils {
             level = level,
             verdict = verdict,
             khalesLetters = khales,
+            bastLetters = bast,
+            factorMustahsalah = factorMustahsalah,
             factorBurj = burjOf(factorRem),
             factorElement = elementOfBurjRem(factorRem),
             factorGender = genderOfBurjRem(factorRem),
@@ -1144,6 +1156,8 @@ object AbjadUtils {
             s.indicators.forEach { appendLine("• $it") }
             appendLine("سطح دلالت: ${s.level}")
             appendLine("حروف استخراجی عامل (تخلیص): ${formatLetters(s.khalesLetters)}")
+            if (s.bastLetters.isNotBlank()) appendLine("بسط ملفوظی: ${s.bastLetters}")
+            if (s.factorMustahsalah.isNotBlank()) appendLine("نطق مستحصله عامل: ${formatLetters(s.factorMustahsalah)}")
             appendLine("عامل: برج ${s.factorBurj} | طبع ${s.factorElement} | ${s.factorGender} | کوکب ${s.factorKawkab}")
             if (s.factorRelation.isNotBlank()) appendLine("نسبت: ${s.factorRelation}")
             appendLine("جهت اثر: ${t.direction}")
@@ -1160,6 +1174,7 @@ object AbjadUtils {
         val cleanText = normalizeText(text).trim()
             .replace("^آیا\\s+".toRegex(), "")
             .replace("^ایا\\s+".toRegex(), "")
+            .replace("^یا\\s+هو\\s+".toRegex(), "")
         val words = cleanText.split("\\s+".toRegex())
         for (keyword in keywords) {
             val index = words.indexOf(keyword)
