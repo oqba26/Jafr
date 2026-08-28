@@ -1,7 +1,7 @@
 {
   "versionCode": 4,
-  "versionName": "1.2.1",
+  "versionName": "v1.2.1",
   "url": "https://github.com/oqba26/Jafr/releases/download/v1.2.1/Jafr-v1.2.1.apk",
-  "releaseNotes": "• رفع مشکل تکرار سوالات در تاریخچه با پیاده‌سازی مکانیزم Debounce\n• ارتقای ماژول طلسم: اضافه شدن بسط ملفوظی و نطق مستحصله عامل برای استخراج جواب درونی\n• بهبود پایداری و رفع باگ‌های جزئی در محاسبات ابجد",
+  "releaseNotes": "نسخه جدید برنامه منتشر شد",
   "isForceUpdate": false
 }
