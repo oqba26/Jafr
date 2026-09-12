@@ -20,10 +20,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.oqba26.jafr.AbjadType
 import com.oqba26.jafr.AbjadUtils
+import com.oqba26.jafr.Element
 import com.oqba26.jafr.HistoryManager
 import com.oqba26.jafr.Jafr15Result
+import com.oqba26.jafr.JafrRuleType
 import com.oqba26.jafr.NadhiraType
 import com.oqba26.jafr.SpellAnalysis
+import com.oqba26.jafr.TabayeAnalysis
 import com.oqba26.jafr.TopicAnalysis
 import com.oqba26.jafr.model.HistoryItem
 import com.oqba26.jafr.util.PersianNumberVisualTransformation
@@ -182,6 +185,17 @@ fun AbjadCalculatorScreen(
                         JafrAnswerCard(jafrResult)
                     }
                     val taqsimat = jafrResult.taqsimat
+                    taqsimat?.tabaye?.let { tb ->
+                        item {
+                            TabayeCard(tb)
+                        }
+                    }
+                    item {
+                        JafrRulesCard(text)
+                    }
+                    item {
+                        KulleSirrInfoCard()
+                    }
                     if (taqsimat?.spell != null) {
                         item {
                             SpellCard(taqsimat.spell, taqsimat.direction)
@@ -225,41 +239,62 @@ fun AbjadCalculatorScreen(
                 }
             }
         } else {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("مقدار نهایی (${selectedType.label}):")
-                    Text(
-                        text = AbjadUtils.toPersianNumber(result.total),
-                        style = MaterialTheme.typography.displayMedium,
-                        fontWeight = FontWeight.Black
-                    )
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text("مقدار نهایی (${selectedType.label}):")
+                            Text(
+                                text = AbjadUtils.toPersianNumber(result.total),
+                                style = MaterialTheme.typography.displayMedium,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                if (result.breakdown.isNotEmpty()) {
+                    item {
+                        Column {
+                            Text(
+                                "تفکیک حروف:",
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Right,
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                result.breakdown.forEach { (char, value) ->
+                                    LetterCard(char, value)
+                                }
+                            }
+                        }
+                    }
 
-            if (result.breakdown.isNotEmpty()) {
-                Text(
-                    "تفکیک حروف:",
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Right,
-                    style = MaterialTheme.typography.titleSmall
-                )
-                FlowRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    result.breakdown.forEach { (char, value) ->
-                        LetterCard(char, value)
+                    val tabaye = AbjadUtils.analyzeTabaye(text)
+                    item {
+                        TabayeCard(tabaye)
+                    }
+
+                    item {
+                        JafrRulesCard(text)
+                    }
+
+                    item {
+                        KulleSirrInfoCard()
                     }
                 }
             }
@@ -776,6 +811,188 @@ fun SpellCard(spell: SpellAnalysis, direction: String) {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.6f)
             )
+        }
+    }
+}
+
+@Composable
+fun TabayeCard(tabaye: TabayeAnalysis) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "تحلیل طبایع چهارگانه حروف",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(Color(tabaye.dominantElement.colorHex).copy(alpha = 0.2f))
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "غالب: ${tabaye.dominantElement.label}",
+                        color = Color(tabaye.dominantElement.colorHex),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                ElementBarItem("آتش (ناری)", tabaye.fireCount, tabaye.firePercent, Color(Element.FIRE.colorHex))
+                ElementBarItem("باد (هوایی)", tabaye.airCount, tabaye.airPercent, Color(Element.AIR.colorHex))
+                ElementBarItem("آب (مائی)", tabaye.waterCount, tabaye.waterPercent, Color(Element.WATER.colorHex))
+                ElementBarItem("خاک (ترابی)", tabaye.earthCount, tabaye.earthPercent, Color(Element.EARTH.colorHex))
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = tabaye.recommendation,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+@Composable
+fun ElementBarItem(label: String, count: Int, percent: Int, color: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = label, style = MaterialTheme.typography.labelSmall)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "${AbjadUtils.toPersianNumber(percent)}٪",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = color
+        )
+        Text(
+            text = "(${AbjadUtils.toPersianNumber(count)} حرف)",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+        )
+    }
+}
+
+@Composable
+fun JafrRulesCard(text: String) {
+    var selectedRule by remember { mutableStateOf(JafrRuleType.TARAQQI) }
+    val ruleResult = remember(text, selectedRule) { AbjadUtils.applyJafrRule(text, selectedRule) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "قواعد چهارگانه جفر (سیر مراتب حروف)",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                JafrRuleType.entries.forEach { rule ->
+                    FilterChip(
+                        selected = selectedRule == rule,
+                        onClick = { selectedRule = rule },
+                        label = { Text(rule.label) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = ruleResult.explanation,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = "سطر حاصل (${selectedRule.label}):",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = ruleResult.transformedText.map { it.toString() }.joinToString("  "),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun KulleSirrInfoCard() {
+    var isExpanded by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "کلیات علوم پنج‌گانه خفیه (کُلّه سِرّ) و نقد خرافات",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = { isExpanded = !isExpanded }) {
+                    Text(if (isExpanded) "بستن" else "مشاهده")
+                }
+            }
+
+            if (isExpanded) {
+                Spacer(modifier = Modifier.height(8.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = AbjadUtils.getKulleSirrOverview(),
+                    style = MaterialTheme.typography.bodySmall,
+                    lineHeight = MaterialTheme.typography.bodySmall.lineHeight * 1.3
+                )
+            }
         }
     }
 }

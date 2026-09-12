@@ -101,6 +101,41 @@ data class TimeReading(
     val note: String
 )
 
+enum class Element(val label: String, val nature: String, val colorHex: Long) {
+    FIRE("ناری (آتش)", "گرم و خشک", 0xFFE53935),
+    AIR("هوایی (باد)", "گرم و تر", 0xFFFB8C00),
+    WATER("مائی (آب)", "سرد و تر", 0xFF1E88E5),
+    EARTH("ترابی (خاک)", "سرد و خشک", 0xFF43A047)
+}
+
+data class TabayeAnalysis(
+    val fireCount: Int,
+    val airCount: Int,
+    val waterCount: Int,
+    val earthCount: Int,
+    val totalLetters: Int,
+    val firePercent: Int,
+    val airPercent: Int,
+    val waterPercent: Int,
+    val earthPercent: Int,
+    val dominantElement: Element,
+    val recommendation: String
+)
+
+enum class JafrRuleType(val label: String, val description: String) {
+    TARAQQI("ترقی", "صعود حروف از یک مرتبه به مرتبه بالاتر (آحاد ← عشرات ← مئات ← ألوف)"),
+    TANZIL("تنزل", "نزول حروف از یک مرتبه به مرتبه پایین‌تر (ألوف ← مئات ← عشرات ← آحاد)"),
+    MUSAWAT("مساوات", "معادل‌سازی و حفظ ارزش مرتبه‌ای حروف در دایره هم‌ارز"),
+    TARAFPU("ترفع", "جهش دو مرتبه‌ای و صعود مراتب آحاد به مئات / عشرات به ألوف")
+}
+
+data class JafrRuleResult(
+    val ruleType: JafrRuleType,
+    val originalText: String,
+    val transformedText: String,
+    val explanation: String
+)
+
 data class JafrTaqsimat(
     val total: Int,
     val direction: String,
@@ -117,7 +152,8 @@ data class JafrTaqsimat(
     val spell: SpellAnalysis? = null,
     val topics: List<TopicAnalysis> = emptyList(),
     val cross: CrossChecks? = null,
-    val time: TimeReading? = null
+    val time: TimeReading? = null,
+    val tabaye: TabayeAnalysis? = null
 )
 
 data class Jafr15Result(
@@ -538,6 +574,8 @@ object AbjadUtils {
             )
         )
 
+        val tabaye = analyzeTabaye(cleanText)
+
         return JafrTaqsimat(
             total = total,
             direction = direction,
@@ -554,7 +592,8 @@ object AbjadUtils {
             spell = spell,
             topics = topics,
             cross = cross,
-            time = time
+            time = time,
+            tabaye = tabaye
         )
     }
 
@@ -1166,8 +1205,140 @@ object AbjadUtils {
             appendLine("یادآوری: در منابع سنتی تصریح شده که جفر علم غیب نیست؛ تطبیق نهایی اسم بر حروف، با بصیرت سائل است.")
             appendLine()
         }
+        t.tabaye?.let { tb ->
+            appendLine("طبایع چهارگانه حروف: ناری ${toPersianNumber(tb.firePercent)}٪ | هوایی ${toPersianNumber(tb.airPercent)}٪ | مائی ${toPersianNumber(tb.waterPercent)}٪ | ترابی ${toPersianNumber(tb.earthPercent)}٪ → طبع غالب: ${tb.dominantElement.label}")
+            appendLine()
+        }
         append("حکم نطق: ${t.verdict}")
     }
+
+    fun getLetterElement(c: Char): Element {
+        val norm = normalizeLetter(c)
+        return when (norm) {
+            'ا', 'ه', 'ط', 'م', 'ف', 'ش', 'ذ' -> Element.FIRE
+            'ب', 'و', 'ی', 'ن', 'ص', 'ت', 'ض' -> Element.AIR
+            'ج', 'ز', 'ک', 'س', 'ق', 'ث', 'ظ' -> Element.WATER
+            'د', 'ح', 'ل', 'ع', 'ر', 'خ', 'غ' -> Element.EARTH
+            else -> Element.FIRE
+        }
+    }
+
+    fun analyzeTabaye(text: String): TabayeAnalysis {
+        val cleanText = normalizeText(text).filter { it in kabirMap.keys }
+        if (cleanText.isEmpty()) {
+            return TabayeAnalysis(0, 0, 0, 0, 0, 0, 0, 0, 0, Element.FIRE, "متن خالی است")
+        }
+        var fire = 0
+        var air = 0
+        var water = 0
+        var earth = 0
+
+        for (char in cleanText) {
+            when (getLetterElement(char)) {
+                Element.FIRE -> fire++
+                Element.AIR -> air++
+                Element.WATER -> water++
+                Element.EARTH -> earth++
+            }
+        }
+        val total = cleanText.length
+        val fireP = (fire * 100) / total
+        val airP = (air * 100) / total
+        val waterP = (water * 100) / total
+        val earthP = (earth * 100) / total
+
+        val maxCount = maxOf(fire, air, water, earth)
+        val dominant = when (maxCount) {
+            fire -> Element.FIRE
+            air -> Element.AIR
+            water -> Element.WATER
+            else -> Element.EARTH
+        }
+
+        val recommendation = when (dominant) {
+            Element.FIRE -> "طبع غالب «ناری (آتش)» با مزاج «${Element.FIRE.nature}» است — دارای انرژی گرم و خشک، شتاب، قاطعیت و تحرک بالا."
+            Element.AIR -> "طبع غالب «هوایی (باد)» با مزاج «${Element.AIR.nature}» است — دارای مزاج گرم و تر، انعطاف‌پذیری، ارتباطات و روانی."
+            Element.WATER -> "طبع غالب «مائی (آب)» با مزاج «${Element.WATER.nature}» است — دارای مزاج سرد و تر، آرامش، نفوذ تدریجی و سازگاری."
+            Element.EARTH -> "طبع غالب «ترابی (خاک)» با مزاج «${Element.EARTH.nature}» است — دارای مزاج سرد و خشک، ثبات، پایداری، دقت و ماندگاری."
+        }
+
+        return TabayeAnalysis(
+            fireCount = fire,
+            airCount = air,
+            waterCount = water,
+            earthCount = earth,
+            totalLetters = total,
+            firePercent = fireP,
+            airPercent = airP,
+            waterPercent = waterP,
+            earthPercent = earthP,
+            dominantElement = dominant,
+            recommendation = recommendation
+        )
+    }
+
+    fun applyJafrRule(text: String, rule: JafrRuleType): JafrRuleResult {
+        val clean = normalizeText(text).filter { it in kabirMap.keys }
+        val ahad = "ابجدهوزحط"
+        val asharat = "یکلمنسعفص"
+        val miaat = "قرشتثخذضظ"
+
+        val sb = StringBuilder()
+        for (c in clean) {
+            val norm = normalizeLetter(c)
+            val idxA = ahad.indexOf(norm)
+            val idxB = asharat.indexOf(norm)
+            val idxC = miaat.indexOf(norm)
+
+            val newChar = when (rule) {
+                JafrRuleType.TARAQQI -> when {
+                    idxA != -1 -> asharat[idxA]
+                    idxB != -1 -> miaat[idxB]
+                    idxC != -1 -> 'غ'
+                    norm == 'غ' -> 'ا'
+                    else -> norm
+                }
+                JafrRuleType.TANZIL -> when {
+                    norm == 'غ' -> miaat[0]
+                    idxC != -1 -> asharat[idxC]
+                    idxB != -1 -> ahad[idxB]
+                    idxA != -1 -> 'غ'
+                    else -> norm
+                }
+                JafrRuleType.MUSAWAT -> getNaziraChar(norm, NadhiraType.ABJAD)
+                JafrRuleType.TARAFPU -> when {
+                    idxA != -1 -> miaat[idxA]
+                    idxB != -1 -> 'غ'
+                    idxC != -1 -> ahad[idxC]
+                    norm == 'غ' -> asharat[0]
+                    else -> norm
+                }
+            }
+            sb.append(newChar)
+        }
+
+        val exp = rule.description
+
+        return JafrRuleResult(
+            ruleType = rule,
+            originalText = clean,
+            transformedText = sb.toString(),
+            explanation = exp
+        )
+    }
+
+    fun getKulleSirrOverview(): String = """
+        کُلّه سِرّ (علوم پنج‌گانه خفیه):
+        ۱. کیمیا: دانش تبدیل اجساد و اکسیر (ماده‌شناسی سنتی)
+        ۲. لیمیا: دانش طلسمات و ارتباط با کواکب و منازل نجومی
+        ۳. هیمیا: دانش تسخیرات و تعویذات
+        ۴. سیمیا: دانش ایهام، تصرف در دیدگان و ذهن ناظران (چشم و ذهن)
+        ۵. ریمیا: دانش شعبده و اعمال خارق‌العاده
+
+        رویکرد انتقادی و علمی متن:
+        • اصل سیمیا بر تصرف در خیالات مردم و دگرگونی تصویر اشیاء در چشم و ذهن ناظران استوار است.
+        • در مواجهه با نسخه‌های کهن، باید ادعاهای خرافی را از اصول ساختارمند و قواعد واقعی حروف جدا کرد.
+    """.trimIndent()
 
     fun extractNames(text: String): Pair<String?, String?> {
         val keywords = listOf("زاده", "فرزند", "بن", "ابن", "بنت")

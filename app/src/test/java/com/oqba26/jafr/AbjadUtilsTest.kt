@@ -18,23 +18,21 @@ class AbjadUtilsTest {
 
     private val verdictPositive = "بله — منزل سعد و حروف مستحصله غالباً سعدند. با اطمینان پیگیری کنید."
     private val verdictCautiousPositive = "بله ولی با احتیاط — منزل سعد است اما حروف نحس سنگینی دارند؛ صبر و دقت کنید."
-    private val verdictBalanced = "بله — منزل سعد است و حروف متعادل؛ نتیجه خوب خواهد بود."
     private val mixedVerdictPrefix = "پاسخ مردد — قرائن سه مسیر همسو نیستند"
 
-    // ─── جمع ابجد ───
+    // ─── Abjad Calculation Tests ───
 
     @Test
-    fun `جمع ابجد کبیر سوالات نمونه`() {
+    fun testCalculateKabirAbjadSampleQuestions() {
         assertEquals(1973, AbjadUtils.calculate(qWork, AbjadType.KABIR).total)
         assertEquals(1320, AbjadUtils.calculate(qCurse, AbjadType.KABIR).total)
         assertEquals(1793, AbjadUtils.calculate(qIllness, AbjadType.KABIR).total)
         assertEquals(1959, AbjadUtils.calculate(qLost, AbjadType.KABIR).total)
-        // «حتماً» = ح(8) + ت(400) + م(40) + ا(1) = 449
         assertEquals(2422, AbjadUtils.calculate(qWorkInsistent, AbjadType.KABIR).total)
     }
 
     @Test
-    fun `انواع ابجد - کبیر صغیر و وسایط`() {
+    fun testAbjadTypesKabirSaghirWasait() {
         assertEquals(1000, AbjadUtils.calculate("غ", AbjadType.KABIR).total)
         assertEquals(4, AbjadUtils.calculate("غ", AbjadType.SAGHIR).total)
         assertEquals(1, AbjadUtils.calculate("غ", AbjadType.WASAIT).total)
@@ -45,10 +43,10 @@ class AbjadUtilsTest {
         assertEquals(2, AbjadUtils.calculate("ب", AbjadType.JAFR_15).total)
     }
 
-    // ─── سیستم تقسیمات جفری ───
+    // ─── Jafr 15 System Tests ───
 
     @Test
-    fun `تقسیمات جفری - منازل قمر سوالات نمونه`() {
+    fun testJafr15ManzelTaqsimat() {
         assertTrue(AbjadUtils.calculateJafr15(qWork).answer.contains("منزل قمر (÷۲۸): سماک"))
         assertTrue(AbjadUtils.calculateJafr15(qCurse).answer.contains("منزل قمر (÷۲۸): هقعه"))
         assertTrue(AbjadUtils.calculateJafr15(qIllness).answer.contains("منزل قمر (÷۲۸): بطین"))
@@ -57,7 +55,7 @@ class AbjadUtilsTest {
     }
 
     @Test
-    fun `تقسیمات جفری - جمع و شمارش سعد نحس`() {
+    fun testJafr15SaadNahsLetterCount() {
         val aWork = AbjadUtils.calculateJafr15(qWork).answer
         assertTrue(aWork.contains("جمع ابجد کبیر: ۱۹۷۳"))
         assertTrue(aWork.contains("حروف سعد: ۱۹ | حروف نحس: ۱۲"))
@@ -80,24 +78,20 @@ class AbjadUtilsTest {
     }
 
     @Test
-    fun `تقسیمات جفری - حکم نطق`() {
+    fun testJafr15Verdict() {
         assertEquals(verdictPositive, extractVerdict(AbjadUtils.calculateJafr15(qWork).answer))
-        // سه مسیر طلسم هم‌سو نیستند → پاسخ مردد با ذکر دلیل
         assertTrue(extractVerdict(AbjadUtils.calculateJafr15(qCurse).answer).startsWith(mixedVerdictPrefix))
         assertEquals(verdictCautiousPositive, extractVerdict(AbjadUtils.calculateJafr15(qIllness).answer))
         assertEquals(verdictPositive, extractVerdict(AbjadUtils.calculateJafr15(qLost).answer))
-        // افزودن «حتماً» دیگر جواب را از «بله» به «نه» برنمی‌گرداند
         assertEquals(verdictPositive, extractVerdict(AbjadUtils.calculateJafr15(qWorkInsistent).answer))
     }
 
     @Test
-    fun `سیستم جدید - تعیینگر بودن و حذف قالب های کلیدواژه ای`() {
-        // همان سوال، همان جواب
+    fun testJafr15DeterministicAnswer() {
         assertEquals(
             AbjadUtils.calculateJafr15(qLost).answer,
             AbjadUtils.calculateJafr15(qLost).answer
         )
-        // قالب‌های قدیمی و کلیدواژه‌ای دیگر وجود ندارند
         assertFalse(AbjadUtils.calculateJafr15(qLost).answer.contains("سارق"))
         assertFalse(AbjadUtils.calculateJafr15(qLost).answer.contains("طالع نیت"))
         assertFalse(AbjadUtils.calculateJafr15(qCurse).answer.contains("در اوج"))
@@ -105,7 +99,7 @@ class AbjadUtilsTest {
     }
 
     @Test
-    fun `سطر های جفر ۱۵ - پنج سطر ثابت`() {
+    fun testJafr15FiveRows() {
         val result = AbjadUtils.calculateJafr15(qWork)
         assertEquals(5, result.rows.size)
         assertEquals("سطر اول: اساس (حروف سوال)", result.rows[0].title)
@@ -116,10 +110,11 @@ class AbjadUtilsTest {
     }
 
     @Test
-    fun `تقسیمات جفری - داده ساختار یافته`() {
+    fun testJafr15StructuredTaqsimat() {
         val t = AbjadUtils.calculateJafr15(qWork).taqsimat
         assertNotNull(t)
-        assertEquals(1973, t!!.total)
+        checkNotNull(t)
+        assertEquals(1973, t.total)
         assertEquals("شرق", t.direction)
         assertEquals("جمعه", t.day)
         assertEquals("زهره", t.kawkab)
@@ -131,10 +126,11 @@ class AbjadUtilsTest {
         assertEquals(12, t.nahsCount)
         assertEquals("سعد", t.dominant)
         assertEquals(verdictPositive, t.verdict)
-        // قرائن سه مسیر
+
         val cross = t.cross
         assertNotNull(cross)
-        assertEquals(3, cross!!.paths.size)
+        checkNotNull(cross)
+        assertEquals(3, cross.paths.size)
         assertEquals("جمع سوال", cross.paths[0].label)
         assertEquals("مستحصله", cross.paths[1].label)
         assertEquals("عدد حروف", cross.paths[2].label)
@@ -145,15 +141,16 @@ class AbjadUtilsTest {
         assertEquals("نسبتاً همسو", cross.confidence)
         assertEquals(2, cross.agreeCount)
         assertEquals(3, cross.nadhiraPolarities.size)
-        // سوال خالی داده ساختار یافته ندارد
+
         assertNull(AbjadUtils.calculateJafr15("").taqsimat)
     }
 
     @Test
-    fun `تحلیل طلسم - سوال طلسم شده`() {
+    fun testSpellAnalysisForCurseQuestion() {
         val spell = AbjadUtils.calculateJafr15(qCurse).taqsimat?.spell
         assertNotNull(spell)
-        assertEquals(2, spell!!.score)
+        checkNotNull(spell)
+        assertEquals(2, spell.score)
         assertEquals("متوسط", spell.level)
         assertEquals(2, spell.indicators.size)
         assertTrue(spell.indicators[0].contains("برج سوال"))
@@ -166,23 +163,24 @@ class AbjadUtilsTest {
         assertEquals("سه‌شنبه", spell.factorDay)
         assertTrue(spell.factorRelation.contains("هم‌طبع"))
         assertTrue(spell.verdict.contains("متوسط"))
-        // در متن گزارش هم بخش طلسم هست
+
         assertTrue(AbjadUtils.calculateJafr15(qCurse).answer.contains("تحلیل طلسم / سحر:"))
         assertTrue(AbjadUtils.calculateJafr15(qCurse).answer.contains("حکم طلسم:"))
     }
 
     @Test
-    fun `تحلیل طلسم - سوالات غیر طلسم`() {
+    fun testSpellAnalysisForNonCurseQuestions() {
         assertNull(AbjadUtils.calculateJafr15(qWork).taqsimat?.spell)
         assertNull(AbjadUtils.calculateJafr15(qIllness).taqsimat?.spell)
         assertNull(AbjadUtils.calculateJafr15(qLost).taqsimat?.spell)
     }
 
     @Test
-    fun `طالع شخص از نام و نام مادر`() {
+    fun testPersonTaleNamesExtraction() {
         val p = AbjadUtils.calculateJafr15(qWork).taqsimat?.person
         assertNotNull(p)
-        assertEquals("علی", p!!.firstName)
+        checkNotNull(p)
+        assertEquals("علی", p.firstName)
         assertEquals("زهرا", p.motherName)
         assertEquals("دلو", p.burj)
         assertEquals("بادی", p.element)
@@ -190,22 +188,23 @@ class AbjadUtilsTest {
         assertEquals("یکشنبه", p.day)
 
         val p2 = AbjadUtils.calculateJafr15(qCurse).taqsimat?.person
-        assertEquals("جدی", p2!!.burj)
+        assertNotNull(p2)
+        checkNotNull(p2)
+        assertEquals("جدی", p2.burj)
         assertEquals("خاکی", p2.element)
         assertEquals("عطارد", p2.kawkab)
 
-        // در متن گزارش هم هست
         assertTrue(AbjadUtils.calculateJafr15(qWork).answer.contains("طالع شخص (علی زاده زهرا): برج دلو | طبع بادی | کوکب شمس"))
     }
 
     @Test
-    fun `کوکب سوال`() {
+    fun testKawkabCalculation() {
         assertTrue(AbjadUtils.calculateJafr15(qWork).answer.contains("کوکب سوال (÷۷): زهره"))
         assertTrue(AbjadUtils.calculateJafr15(qCurse).answer.contains("کوکب سوال (÷۷): عطارد"))
     }
 
     @Test
-    fun `استخراج نام از متن`() {
+    fun testExtractNamesFromText() {
         assertEquals(Pair("علی", "زهرا"), AbjadUtils.extractNames("آیا علی زاده زهرا طلسم هست؟"))
         assertEquals(Pair("علی", "زهرا"), AbjadUtils.extractNames("آیا علی بن زهرا طلسم هست؟"))
         assertEquals(Pair("علی", "زهرا"), AbjadUtils.extractNames("آیا علی ابن زهرا طلسم هست؟"))
@@ -213,20 +212,22 @@ class AbjadUtilsTest {
         assertEquals(Pair(null, null), AbjadUtils.extractNames("آیا باران می‌بارد؟"))
     }
 
-    // ─── ماژول‌های موضوعی ───
+    // ─── Topic Module Tests ───
 
     @Test
-    fun `ماژول ازدواج - تشخیص و دلایل سنتی`() {
+    fun testMarriageTopicModule() {
         val q = "آیا علی زاده زهرا با مریم ازدواج می‌کند؟"
         val t = AbjadUtils.calculateJafr15(q).taqsimat
         assertNotNull(t)
-        val marriage = t!!.topics.firstOrNull { it.topic == "ازدواج" }
+        checkNotNull(t)
+        val marriage = t.topics.firstOrNull { it.topic == "ازدواج" }
         assertNotNull(marriage)
-        assertTrue(marriage!!.indicators.isNotEmpty())
+        checkNotNull(marriage)
+        assertTrue(marriage.indicators.isNotEmpty())
         assertTrue(marriage.highlights.any { it.first == "کوکب" && it.second == "زحل" })
         assertTrue(marriage.highlights.any { it.first == "برج" && it.second == "دلو" })
         assertEquals("متعادل", marriage.level)
-        // در متن گزارش هم بخش موضوع هست و قبل از حکم نطق
+
         val answer = AbjadUtils.calculateJafr15(q).answer
         assertTrue(answer.contains("تحلیل موضوع: ازدواج"))
         assertTrue(answer.contains("نتیجه ازدواج:"))
@@ -234,50 +235,57 @@ class AbjadUtilsTest {
     }
 
     @Test
-    fun `ماژول سفر - تشخیص جهت و روز سفر`() {
+    fun testTravelTopicModule() {
         val q = "آیا علی زاده زهرا به مشهد سفر کند؟"
         val t = AbjadUtils.calculateJafr15(q).taqsimat
         assertNotNull(t)
-        val travel = t!!.topics.firstOrNull { it.topic == "سفر" }
+        checkNotNull(t)
+        val travel = t.topics.firstOrNull { it.topic == "سفر" }
         assertNotNull(travel)
-        assertEquals("سعد", travel!!.level)
+        checkNotNull(travel)
+        assertEquals("سعد", travel.level)
         assertTrue(travel.highlights.any { it.first == "جهت سفر" && it.second == "جنوب" })
         assertTrue(travel.highlights.any { it.first == "روز حرکت" && it.second == "دوشنبه" })
         assertTrue(AbjadUtils.calculateJafr15(q).answer.contains("جهت سفر: جنوب"))
     }
 
     @Test
-    fun `ماژول فرزند - تشخیص و دلایل`() {
+    fun testChildrenTopicModule() {
         val q = "آیا مریم زاده فاطمه فرزنددار می‌شود؟"
         val t = AbjadUtils.calculateJafr15(q).taqsimat
         assertNotNull(t)
-        val child = t!!.topics.firstOrNull { it.topic == "فرزند" }
+        checkNotNull(t)
+        val child = t.topics.firstOrNull { it.topic == "فرزند" }
         assertNotNull(child)
-        assertEquals("سعد", child!!.level)
+        checkNotNull(child)
+        assertEquals("سعد", child.level)
         assertTrue(child.indicators.any { it.contains("سرطان") })
         assertTrue(child.indicators.any { it.contains("قمر") })
         assertTrue(AbjadUtils.calculateJafr15(q).answer.contains("تحلیل موضوع: فرزند"))
     }
 
     @Test
-    fun `ماژول کسب و کار - سوال کار موفق`() {
+    fun testBusinessTopicModule() {
         val t = AbjadUtils.calculateJafr15(qWork).taqsimat
         assertNotNull(t)
-        val biz = t!!.topics.firstOrNull { it.topic == "کسب‌وکار" }
+        checkNotNull(t)
+        val biz = t.topics.firstOrNull { it.topic == "کسب‌وکار" }
         assertNotNull(biz)
-        assertEquals("سعد", biz!!.level)
+        checkNotNull(biz)
+        assertEquals("سعد", biz.level)
         assertTrue(AbjadUtils.calculateJafr15(qWork).answer.contains("تحلیل موضوع: کسب‌وکار"))
-        // کسب‌وکار روی حکم نطق تأثیری ندارد
         assertEquals(verdictPositive, extractVerdict(AbjadUtils.calculateJafr15(qWork).answer))
     }
 
     @Test
-    fun `ماژول بیماری - تشخیص و توصیه پزشکی`() {
+    fun testIllnessTopicModule() {
         val t = AbjadUtils.calculateJafr15(qIllness).taqsimat
         assertNotNull(t)
-        val illness = t!!.topics.firstOrNull { it.topic == "بیماری و درمان" }
+        checkNotNull(t)
+        val illness = t.topics.firstOrNull { it.topic == "بیماری و درمان" }
         assertNotNull(illness)
-        assertEquals("سعد", illness!!.level)
+        checkNotNull(illness)
+        assertEquals("سعد", illness.level)
         assertTrue(illness.indicators.any { it.contains("شمس") })
         assertTrue(illness.verdict.contains("پزشک") || illness.verdict.contains("درمان"))
         assertNotNull(illness.notice)
@@ -288,23 +296,26 @@ class AbjadUtilsTest {
     }
 
     @Test
-    fun `ماژول بیماری - قرائن نحس در سوال ناخوشی`() {
+    fun testIllnessTopicModuleSevere() {
         val q = "آیا علی زاده زهرا تب شدید دارد؟"
         val illness = AbjadUtils.calculateJafr15(q).taqsimat!!.topics.firstOrNull { it.topic == "بیماری و درمان" }
         assertNotNull(illness)
-        assertTrue(illness!!.indicators.isNotEmpty())
+        checkNotNull(illness)
+        assertTrue(illness.indicators.isNotEmpty())
         assertTrue(illness.level in setOf("سعد", "نحس", "متعادل"))
         assertTrue(illness.verdict.contains("پزشک") || illness.verdict.contains("درمان"))
     }
 
     @Test
-    fun `ماژول معامله - تشخیص و سطح`() {
+    fun testTransactionTopicModule() {
         val q = "آیا علی زاده زهرا این خانه را بخرد؟"
         val t = AbjadUtils.calculateJafr15(q).taqsimat
         assertNotNull(t)
-        val txn = t!!.topics.firstOrNull { it.topic == "خرید و فروش" }
+        checkNotNull(t)
+        val txn = t.topics.firstOrNull { it.topic == "خرید و فروش" }
         assertNotNull(txn)
-        assertEquals("سعد", txn!!.level)
+        checkNotNull(txn)
+        assertEquals("سعد", txn.level)
         assertTrue(txn.indicators.any { it.contains("عطارد") })
         assertTrue(txn.highlights.any { it.first == "کوکب" && it.second == "عطارد" })
         assertTrue(txn.verdict.startsWith("بله"))
@@ -316,7 +327,7 @@ class AbjadUtilsTest {
     }
 
     @Test
-    fun `ماژول معامله - سوال ملک و ماشین`() {
+    fun testTransactionTopicModuleVariants() {
         val t1 = AbjadUtils.calculateJafr15("آیا علی زاده زهرا این ملک را بخرد؟").taqsimat!!
         assertTrue(t1.topics.any { it.topic == "خرید و فروش" })
         val t2 = AbjadUtils.calculateJafr15("آیا علی زاده زهرا این ماشین را بخرد؟").taqsimat!!
@@ -324,25 +335,26 @@ class AbjadUtilsTest {
         val t3 = AbjadUtils.calculateJafr15("آیا قیمت این خانه منصفانه است؟").taqsimat!!
         val txn = t3.topics.firstOrNull { it.topic == "خرید و فروش" }
         assertNotNull(txn)
-        assertTrue(txn!!.indicators.any { it.contains("مشتری") })
+        checkNotNull(txn)
+        assertTrue(txn.indicators.any { it.contains("مشتری") })
     }
 
     @Test
-    fun `ماژول معامله - عدم تشخیص در سوال کسب و کار`() {
+    fun testTransactionNotDetectedForGeneralWork() {
         val t = AbjadUtils.calculateJafr15(qWork).taqsimat!!
         assertTrue(t.topics.any { it.topic == "کسب‌وکار" })
         assertTrue(t.topics.none { it.topic == "خرید و فروش" })
     }
 
     @Test
-    fun `ماژول های موضوعی - عدم تشخیص در سوالات بی ربط`() {
+    fun testTopicModulesNotDetectedForIrrelevantQuestions() {
         assertTrue(AbjadUtils.calculateJafr15(qCurse).taqsimat!!.topics.isEmpty())
         assertTrue(AbjadUtils.calculateJafr15(qLost).taqsimat!!.topics.isEmpty())
         assertTrue(AbjadUtils.calculateJafr15("آیا فردا باران می‌بارد؟").taqsimat!!.topics.isEmpty())
     }
 
     @Test
-    fun `ماژول های موضوعی - تشخیص چند موضوع در یک سوال`() {
+    fun testMultipleTopicsInOneQuestion() {
         val q = "آیا علی زاده زهرا در سفر با مریم ازدواج می‌کند؟"
         val topics = AbjadUtils.calculateJafr15(q).taqsimat!!.topics
         assertTrue(topics.any { it.topic == "ازدواج" })
@@ -350,24 +362,21 @@ class AbjadUtilsTest {
     }
 
     @Test
-    fun `سوال خالی`() {
+    fun testEmptyQuestionHandling() {
         val result = AbjadUtils.calculateJafr15("")
         assertEquals("سوال خالی است", result.answer)
         assertTrue(result.rows.isEmpty())
     }
 
     @Test
-    fun `اعداد فارسی`() {
+    fun testPersianNumbersConversion() {
         assertEquals("۱۹۷۳", AbjadUtils.toPersianNumber(1973))
         assertEquals("۰", AbjadUtils.toPersianNumber(0))
         assertEquals("۱۳:۰۵", AbjadUtils.toPersianNumber("13:05"))
     }
 
-    // ─── هنجارسازی، قرائن سه مسیر، قرینه زمان، وزن‌دهی شفاف ───
-
     @Test
-    fun `هنجارسازی املا - هم ارزی شکل های مختلف حروف`() {
-        // ي/ى با ی، ك با ک، آ با ا هم‌ارزند
+    fun testSpellingNormalization() {
         assertEquals(
             AbjadUtils.calculate("علی", AbjadType.KABIR).total,
             AbjadUtils.calculate("علي", AbjadType.KABIR).total
@@ -380,7 +389,7 @@ class AbjadUtilsTest {
             AbjadUtils.calculate("آیا", AbjadType.KABIR).total,
             AbjadUtils.calculate("ايا", AbjadType.KABIR).total
         )
-        // همان سوال با املای عربی، جواب یکسان می‌دهد
+
         val a = AbjadUtils.calculateJafr15("آیا علی زاده زهرا طلسم شده است؟")
         val b = AbjadUtils.calculateJafr15("ايا علي زاده زهرا طلسم شده است؟")
         assertEquals(a.taqsimat!!.total, b.taqsimat!!.total)
@@ -388,10 +397,11 @@ class AbjadUtilsTest {
     }
 
     @Test
-    fun `قرائن سه مسیر - بیماری هر سه مسیر همسوست`() {
+    fun testThreePathsConsensus() {
         val c = AbjadUtils.calculateJafr15(qIllness).taqsimat!!.cross
         assertNotNull(c)
-        assertEquals("بله", c!!.consensus)
+        checkNotNull(c)
+        assertEquals("بله", c.consensus)
         assertEquals("همسو", c.confidence)
         assertEquals(3, c.agreeCount)
         assertTrue(c.paths.all { it.polarity == "بله" })
@@ -399,22 +409,22 @@ class AbjadUtilsTest {
     }
 
     @Test
-    fun `قرینه زمان - با تاریخ ثابت`() {
+    fun testTimeReadingWithFixedDate() {
         val pdate = PersianDate(1700000000000L)
         pdate.setHour(14)
         val time = AbjadUtils.calculateJafr15(qWork, NadhiraType.ABJAD, pdate).taqsimat?.time
         assertNotNull(time)
-        assertTrue(time!!.weekday.isNotBlank())
+        checkNotNull(time)
+        assertTrue(time.weekday.isNotBlank())
         assertTrue(time.dayKawkab in setOf("زحل", "شمس", "قمر", "مریخ", "عطارد", "مشتری", "زهره"))
         assertTrue(time.hourKawkab in setOf("زحل", "شمس", "قمر", "مریخ", "عطارد", "مشتری", "زهره"))
         assertTrue(time.note.isNotBlank())
         assertTrue(AbjadUtils.calculateJafr15(qWork, NadhiraType.ABJAD, pdate).answer.contains("قرینه زمان"))
-        // بدون تاریخ، قرینه زمان null است
         assertNull(AbjadUtils.calculateJafr15(qWork).taqsimat?.time)
     }
 
     @Test
-    fun `وزن دهی شفاف - وزن در متن شاخص ها`() {
+    fun testTransparentWeightingInIndicators() {
         val biz = AbjadUtils.calculateJafr15(qWork).taqsimat!!.topics.first { it.topic == "کسب‌وکار" }
         assertTrue(biz.indicators.isNotEmpty())
         assertTrue(biz.indicators.all { it.contains("(+1)") || it.contains("(-1)") || it.contains("(+2)") || it.contains("(-2)") })
@@ -423,6 +433,41 @@ class AbjadUtilsTest {
         val qMarriage = "آیا علی زاده زهرا با مریم ازدواج می‌کند؟"
         val marriage = AbjadUtils.calculateJafr15(qMarriage).taqsimat!!.topics.first { it.topic == "ازدواج" }
         assertTrue(marriage.indicators.any { it.contains("زحل") && it.endsWith("(-2)") })
+    }
+
+    @Test
+    fun testTabayeFourElementsAnalysis() {
+        val tabaye = AbjadUtils.analyzeTabaye("علی")
+        assertEquals(3, tabaye.totalLetters)
+        assertEquals(0, tabaye.fireCount)
+        assertEquals(1, tabaye.airCount)
+        assertEquals(0, tabaye.waterCount)
+        assertEquals(2, tabaye.earthCount)
+        assertEquals(Element.EARTH, tabaye.dominantElement)
+        assertTrue(tabaye.recommendation.contains("ترابی"))
+    }
+
+    @Test
+    fun testFourJafrRulesTransformations() {
+        val taraqqi = AbjadUtils.applyJafrRule("علی", JafrRuleType.TARAQQI)
+        assertEquals("علی", taraqqi.originalText)
+        assertEquals("ذشق", taraqqi.transformedText)
+
+        val tanzil = AbjadUtils.applyJafrRule("علی", JafrRuleType.TANZIL)
+        assertEquals("زجا", tanzil.transformedText)
+
+        val tarafpu = AbjadUtils.applyJafrRule("علی", JafrRuleType.TARAFPU)
+        assertEquals("غغغ", tarafpu.transformedText)
+
+        val musawat = AbjadUtils.applyJafrRule("علی", JafrRuleType.MUSAWAT)
+        assertEquals(3, musawat.transformedText.length)
+    }
+
+    @Test
+    fun testKulleSirrOverviewContent() {
+        val overview = AbjadUtils.getKulleSirrOverview()
+        assertTrue(overview.contains("سیمیا"))
+        assertTrue(overview.contains("اصل سیمیا بر تصرف در خیالات مردم"))
     }
 
     private fun extractVerdict(answer: String): String {
