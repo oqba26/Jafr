@@ -1,7 +1,7 @@
 {
   "versionCode": 6,
-  "versionName": "v1.3.0",
-  "url": "https://github.com/oqba26/Jafr/releases/download/v1.3.0/Jafr-v1.3.0.apk",
-  "releaseNotes": "نسخه جدید برنامه منتشر شد",
+  "versionName": "1.2.2",
+  "url": "https://github.com/oqba26/Jafr/releases/download/v1.2.2/Jafr-v1.2.2.apk",
+  "releaseNotes": "• اضافه شدن بخش تحلیل طبایع چهارگانه حروف (ناری، هوایی، مائی، ترابی) بر اساس متون کهن\n• پیاده‌سازی قواعد چهارگانه جفر (ترقی، تنزل، مساوات، ترفع)\n• اضافه شدن راهنمای علوم پنج‌گانه خفیه (کُلّه سِرّ) و نقد خرافات\n• بهبودهای جزئی و ارتقای پایداری اپلیکیشن",
   "isForceUpdate": false
 }
