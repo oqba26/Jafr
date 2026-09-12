@@ -1,5 +1,8 @@
 package com.oqba26.jafr.ui
 
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -50,6 +53,10 @@ fun AbjadCalculatorScreen(
     }
     var selectedNadhira by remember { mutableStateOf(NadhiraType.ABJAD) }
     
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offsetX by remember { mutableFloatStateOf(0f) }
+    var offsetY by remember { mutableFloatStateOf(0f) }
+
     // همگام سازی متن داخلی با تغییرات بیرونی
     LaunchedEffect(text) {
         onTextChange(text)
@@ -104,6 +111,24 @@ fun AbjadCalculatorScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .pointerInput(Unit) {
+                detectTransformGestures { _, pan, zoom, _ ->
+                    scale = (scale * zoom).coerceIn(1f, 3f)
+                    if (scale == 1f) {
+                        offsetX = 0f
+                        offsetY = 0f
+                    } else {
+                        offsetX += pan.x
+                        offsetY += pan.y
+                    }
+                }
+            }
+            .graphicsLayer(
+                scaleX = scale,
+                scaleY = scale,
+                translationX = offsetX,
+                translationY = offsetY
+            )
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -242,12 +267,12 @@ fun AbjadCalculatorScreen(
     }
 }
 
-private val SaadBadgeColor = Color(0xFF66BB6A)
-private val NahsBadgeColor = Color(0xFFEF5350)
-private val NeutralBadgeColor = Color(0xFFFFCA28)
+val SaadBadgeColor = Color(0xFF66BB6A)
+val NahsBadgeColor = Color(0xFFEF5350)
+val NeutralBadgeColor = Color(0xFFFFCA28)
 
 @Composable
-private fun JafrAnswerCard(result: Jafr15Result) {
+fun JafrAnswerCard(result: Jafr15Result) {
     val t = result.taqsimat
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -445,7 +470,7 @@ private fun JafrAnswerCard(result: Jafr15Result) {
 }
 
 @Composable
-private fun ReportItem(label: String, value: String, modifier: Modifier = Modifier) {
+fun ReportItem(label: String, value: String, modifier: Modifier = Modifier) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = label,
@@ -462,7 +487,7 @@ private fun ReportItem(label: String, value: String, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun ConfidenceBadge(confidence: String) {
+fun ConfidenceBadge(confidence: String) {
     val color = when (confidence) {
         "همسو" -> SaadBadgeColor
         "نسبتاً همسو" -> NeutralBadgeColor
@@ -484,7 +509,7 @@ private fun ConfidenceBadge(confidence: String) {
 }
 
 @Composable
-private fun DispositionBadge(disposition: String) {
+fun DispositionBadge(disposition: String) {
     val color = when (disposition) {
         "سعد" -> SaadBadgeColor
         "نحس" -> NahsBadgeColor
@@ -506,7 +531,7 @@ private fun DispositionBadge(disposition: String) {
 }
 
 @Composable
-private fun LevelBadge(level: String) {
+fun LevelBadge(level: String) {
     val color = when (level) {
         "قوی" -> NahsBadgeColor
         "متوسط" -> NeutralBadgeColor
@@ -527,7 +552,7 @@ private fun LevelBadge(level: String) {
     }
 }
 
-private fun topicAccent(topicName: String): Color = when (topicName) {
+fun topicAccent(topicName: String): Color = when (topicName) {
     "ازدواج" -> Color(0xFFEC4899)   // صورتی - محبت
     "سفر" -> Color(0xFF3B82F6)      // آبی - حرکت
     "کسب‌وکار" -> Color(0xFF10B981)  // سبز - رزق
@@ -539,7 +564,7 @@ private fun topicAccent(topicName: String): Color = when (topicName) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TopicCard(topic: TopicAnalysis) {
+fun TopicCard(topic: TopicAnalysis) {
     val accent = topicAccent(topic.topic)
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -612,7 +637,7 @@ private fun TopicCard(topic: TopicAnalysis) {
 }
 
 @Composable
-private fun TopicHighlightChip(key: String, value: String, accent: Color) {
+fun TopicHighlightChip(key: String, value: String, accent: Color) {
     Column(
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
@@ -634,7 +659,7 @@ private fun TopicHighlightChip(key: String, value: String, accent: Color) {
 }
 
 @Composable
-private fun SpellCard(spell: SpellAnalysis, direction: String) {
+fun SpellCard(spell: SpellAnalysis, direction: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(

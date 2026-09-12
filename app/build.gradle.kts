@@ -6,21 +6,12 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ksp)
 }
 
 android {
     namespace = "com.oqba26.jafr"
     compileSdk = 35
-
-    defaultConfig {
-        applicationId = "com.oqba26.jafr"
-        minSdk = 24
-        targetSdk = 35
-        versionCode = 4
-        versionName = "1.2.1"
-
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    }
 
     val keystorePropertiesFile = rootProject.file("keystore.properties")
     val keystoreProperties = Properties()
@@ -28,8 +19,30 @@ android {
         keystoreProperties.load(FileInputStream(keystorePropertiesFile))
     }
 
+    val localPropertiesFile = rootProject.file("local.properties")
+    val localProperties = Properties()
+    if (localPropertiesFile.exists()) {
+        localProperties.load(FileInputStream(localPropertiesFile))
+    }
+
     fun getProp(name: String): String? {
-        return System.getenv(name) ?: project.findProperty(name) as? String ?: (keystoreProperties[name] as? String)
+        return System.getenv(name) ?: project.findProperty(name) as? String ?: (keystoreProperties[name] as? String) ?: (localProperties[name] as? String)
+    }
+
+    defaultConfig {
+        applicationId = "com.oqba26.jafr"
+        minSdk = 24
+        targetSdk = 35
+        versionCode = 5
+        versionName = "1.2.2"
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        val supabaseUrl = getProp("SUPABASE_URL") ?: "https://ftufsygeartwukonclkz.supabase.co"
+        val supabaseKey = getProp("SUPABASE_KEY") ?: "sb_publishable_H4mAU1Ds-vZ22HwMSfCaBQ_QjBfmRd5"
+
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+        buildConfigField("String", "SUPABASE_KEY", "\"$supabaseKey\"")
     }
 
     signingConfigs {
@@ -75,6 +88,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -91,6 +105,11 @@ dependencies {
     implementation(libs.persiandate)
     implementation(libs.datastore)
     implementation(libs.gson)
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
+    implementation(platform(libs.supabase.bom))
+    implementation(libs.supabase.postgrest)
 
     // Ktor + kotlinx.serialization for UpdateManager
     implementation(libs.kotlinx.serialization.json)

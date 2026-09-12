@@ -2,6 +2,7 @@ package com.oqba26.jafr.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -10,17 +11,24 @@ import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.oqba26.jafr.AbjadType
+import com.oqba26.jafr.AbjadUtils
 import com.oqba26.jafr.HistoryManager
-import com.oqba26.jafr.model.HistoryItem
+import com.oqba26.jafr.NadhiraType
 import kotlinx.coroutines.launch
+import com.oqba26.jafr.model.HistoryItem
+import saman.zamani.persiandate.PersianDate
 
 @Composable
 fun HistoryScreen(
@@ -32,12 +40,16 @@ fun HistoryScreen(
     var showDeleteAllDialog by remember { mutableStateOf(false) }
     var itemToDelete by remember { mutableStateOf<HistoryItem?>(null) }
 
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offsetX by remember { mutableFloatStateOf(0f) }
+    var offsetY by remember { mutableFloatStateOf(0f) }
+
     // فیلتر کردن لیست برای نمایش فقط موارد جفر ۱۵ سطری که نام و نام مادر دارند
     val filteredHistory = remember(history) {
         history.filter { 
             it.firstName != null && 
             it.motherName != null && 
-            it.type == com.oqba26.jafr.AbjadType.JAFR_15 
+            it.type == AbjadType.JAFR_15 
         }
     }
 
@@ -52,7 +64,28 @@ fun HistoryScreen(
 
     val expandedPersons = remember { mutableStateMapOf<String, Boolean>() }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectTransformGestures { _, pan, zoom, _ ->
+                    scale = (scale * zoom).coerceIn(1f, 3f)
+                    if (scale == 1f) {
+                        offsetX = 0f
+                        offsetY = 0f
+                    } else {
+                        offsetX += pan.x
+                        offsetY += pan.y
+                    }
+                }
+            }
+            .graphicsLayer(
+                scaleX = scale,
+                scaleY = scale,
+                translationX = offsetX,
+                translationY = offsetY
+            )
+    ) {
         if (filteredHistory.isNotEmpty()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -158,8 +191,9 @@ fun PersonGroupCard(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Badge(containerColor = MaterialTheme.colorScheme.primary) {
-                        Text(com.oqba26.jafr.AbjadUtils.toPersianNumber(totalItems))
+                        Text(AbjadUtils.toPersianNumber(totalItems))
                     }
+                    Spacer(modifier = Modifier.width(8.dp))
                     Icon(
                         imageVector = if (isExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
                         contentDescription = null
@@ -188,7 +222,7 @@ fun DateSubGroup(
             Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.Gray)
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = com.oqba26.jafr.AbjadUtils.toPersianNumber(date),
+                text = AbjadUtils.toPersianNumber(date),
                 style = MaterialTheme.typography.labelMedium,
                 color = Color.Gray,
                 fontWeight = FontWeight.Bold
@@ -197,51 +231,80 @@ fun DateSubGroup(
         }
         
         items.forEach { item ->
-            HistoryItemRow(item, onItemClick, onDeleteItem)
-            Spacer(modifier = Modifier.height(8.dp))
+            HistoryItemFullCard(item, onItemClick, onDeleteItem)
+            Spacer(modifier = Modifier.height(12.dp))
         }
     }
 }
 
 @Composable
-fun HistoryItemRow(
+fun HistoryItemFullCard(
     item: HistoryItem,
     onItemClick: (String) -> Unit,
     onDeleteItem: (HistoryItem) -> Unit
 ) {
-    Surface(
-        onClick = { onItemClick(item.text) },
+    val jafrResult = remember(item.text) {
+        AbjadUtils.calculateJafr15(item.text, NadhiraType.ABJAD, PersianDate())
+    }
+
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
     ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(item.text, style = MaterialTheme.typography.bodyMedium)
-                
-                item.answer?.let {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Header info
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "پاسخ: $it",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.secondary,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(top = 2.dp)
+                        text = item.text,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "${item.type.label} • ${AbjadUtils.toPersianNumber(item.timestamp)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.Gray
                     )
                 }
-                
-                Text(
-                    text = "${item.type.label} • ${com.oqba26.jafr.AbjadUtils.toPersianNumber(item.timestamp.split(" ")[1])}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.Gray
-                )
+                Row {
+                    IconButton(onClick = { onItemClick(item.text) }) {
+                        Icon(Icons.Default.Edit, contentDescription = "ویرایش/محاسبه مجدد", tint = MaterialTheme.colorScheme.primary)
+                    }
+                    IconButton(onClick = { onDeleteItem(item) }) {
+                        Icon(Icons.Default.Delete, contentDescription = "حذف", tint = Color.Red.copy(alpha = 0.7f))
+                    }
+                }
             }
-            IconButton(onClick = { onDeleteItem(item) }, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.Delete, contentDescription = "حذف", tint = Color.Red.copy(alpha = 0.5f), modifier = Modifier.size(18.dp))
+
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Full 15-line Jafar Cards
+            JafrAnswerCard(jafrResult)
+            
+            val taqsimat = jafrResult.taqsimat
+            if (taqsimat?.spell != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                SpellCard(taqsimat.spell, taqsimat.direction)
+            }
+            
+            taqsimat?.topics?.forEach { topic ->
+                Spacer(modifier = Modifier.height(12.dp))
+                TopicCard(topic)
+            }
+            
+            jafrResult.rows.forEach { row ->
+                Spacer(modifier = Modifier.height(8.dp))
+                JafrRowCard(row)
             }
         }
     }

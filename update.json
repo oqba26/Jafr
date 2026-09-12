@@ -1,7 +1,7 @@
 {
-  "versionCode": 4,
-  "versionName": "v1.2.1",
-  "url": "https://github.com/oqba26/Jafr/releases/download/v1.2.1/Jafr-v1.2.1.apk",
-  "releaseNotes": "نسخه جدید برنامه منتشر شد",
+  "versionCode": 5,
+  "versionName": "1.2.2",
+  "url": "https://github.com/oqba26/Jafr/releases/download/v1.2.2/Jafr-v1.2.2.apk",
+  "releaseNotes": "• ارتقا و بهبود امنیت کلیدهای ارتباطی Supabase با انتقال به BuildConfig و local.properties\n• بهینه‌سازی و پاکسازی سورس‌کد جهت افزایش پایداری و کارایی مدیریت تاریخچه\n• رفع باگ‌ها و بهبودهای جزئی در رابط کاربری",
   "isForceUpdate": false
 }

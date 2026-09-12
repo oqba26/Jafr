@@ -30,7 +30,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val settingsManager = SettingsManager(this)
-        val historyManager = HistoryManager(this)
+        val historyManager = HistoryManager()
         
         setContent {
             val selectedFont by settingsManager.selectedFont.collectAsState(initial = "vazirmatn")
@@ -83,7 +83,7 @@ class MainActivity : ComponentActivity() {
                                 title = {
                                     Text(
                                         when (currentScreen) {
-                                            Screen.CALCULATOR -> "مـحـاسـبـه‌گـر جـفـر"
+                                            Screen.CALCULATOR -> "میزان الحروف"
                                             Screen.HISTORY -> "تاریخچه محاسبات"
                                             Screen.SETTINGS -> "تنظیمات"
                                         },
