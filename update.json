@@ -1,7 +1,7 @@
 {
   "versionCode": 8,
-  "versionName": "1.2.4",
+  "versionName": "v1.2.4",
   "url": "https://github.com/oqba26/Jafr/releases/download/v1.2.4/Jafr-v1.2.4.apk",
-  "releaseNotes": "• ذخیره‌سازی محلی محاسبات با دیتابیس Room (عملکرد آفلاین)\n• جداسازی و تفکیک کامل تاریخچه کاربران بر اساس دستگاه\n• بهبود پایداری و همگام‌سازی تاریخچه",
+  "releaseNotes": "نسخه جدید برنامه منتشر شد",
   "isForceUpdate": false
 }
