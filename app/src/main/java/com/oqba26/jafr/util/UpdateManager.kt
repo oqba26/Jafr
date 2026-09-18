@@ -5,11 +5,11 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.Environment
+import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import androidx.core.content.ContextCompat
@@ -106,7 +106,7 @@ class UpdateManager(private val context: Context) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 if (!context.packageManager.canRequestPackageInstalls()) {
                     Toast.makeText(context, "لطفاً اجازه نصب برنامه‌های ناشناخته را بدهید", Toast.LENGTH_LONG).show()
-                    val intent = Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                    val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
                         data = "package:${context.packageName}".toUri()
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     }
@@ -222,35 +222,39 @@ class UpdateManager(private val context: Context) {
             return
         }
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (!context.packageManager.canRequestPackageInstalls()) {
+                Toast.makeText(context, "لطفاً مجوز نصب برنامه‌های ناشناخته را به برنامه بدهید", Toast.LENGTH_LONG).show()
+                try {
+                    val settingsIntent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                        data = "package:${context.packageName}".toUri()
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(settingsIntent)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+                return
+            }
+        }
+
         try {
             val contentUri = FileProvider.getUriForFile(
                 context,
-                "com.oqba26.jafr.fileprovider",
+                "${context.packageName}.fileprovider",
                 apkFile
             )
 
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(contentUri, "application/vnd.android.package-archive")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-            }
-
-            val resInfoList = context.packageManager.queryIntentActivities(
-                intent,
-                PackageManager.MATCH_DEFAULT_ONLY
-            )
-            for (resolveInfo in resInfoList) {
-                val packageName = resolveInfo.activityInfo.packageName
-                context.grantUriPermission(
-                    packageName,
-                    contentUri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
 
             context.startActivity(intent)
         } catch (e: Exception) {
-            Toast.makeText(context, "خطا در اجرای فایل نصب", Toast.LENGTH_SHORT).show()
-            e.printStackTrace()
+            Log.e("UpdateManager", "Error installing APK", e)
+            Toast.makeText(context, "خطا در اجرای فایل نصب: ${e.localizedMessage ?: e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
