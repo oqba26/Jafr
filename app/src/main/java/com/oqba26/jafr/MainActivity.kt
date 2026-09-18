@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.oqba26.jafr.data.AppDatabase
 import com.oqba26.jafr.model.Screen
 import com.oqba26.jafr.ui.*
 import com.oqba26.jafr.ui.theme.JafrTheme
@@ -32,7 +33,13 @@ class MainActivity : ComponentActivity() {
         val settingsManager = SettingsManager(this)
         
         setContent {
-            val historyManager = remember { HistoryManager { settingsManager.getOrCreateDeviceId() } }
+            val database = remember { AppDatabase.getDatabase(applicationContext) }
+            val historyManager = remember {
+                HistoryManager(
+                    historyDao = database.historyDao(),
+                    getDeviceId = { settingsManager.getOrCreateDeviceId() }
+                )
+            }
             val selectedFont by settingsManager.selectedFont.collectAsState(initial = "vazirmatn")
             val defaultTypeStr by settingsManager.defaultType.collectAsState(initial = "JAFR_15")
             val showKabir by settingsManager.showKabir.collectAsState(initial = false)

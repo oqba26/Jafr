@@ -11,8 +11,14 @@ interface HistoryDao {
     @Query("SELECT * FROM history ORDER BY id DESC")
     fun getAllHistory(): Flow<List<HistoryEntity>>
 
+    @Query("SELECT * FROM history ORDER BY id DESC")
+    suspend fun getAllHistoryList(): List<HistoryEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertItem(item: HistoryEntity)
+    suspend fun insertItem(item: HistoryEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertItems(items: List<HistoryEntity>)
 
     @Query("DELETE FROM history WHERE id = :id")
     suspend fun deleteItem(id: Long)

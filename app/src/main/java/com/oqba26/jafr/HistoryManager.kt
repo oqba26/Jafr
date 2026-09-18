@@ -1,24 +1,27 @@
 package com.oqba26.jafr
 
+import com.oqba26.jafr.data.HistoryDao
+import com.oqba26.jafr.data.HistoryEntity
+import com.oqba26.jafr.model.HistoryItem
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-import com.oqba26.jafr.model.HistoryItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
 @Serializable
 data class HistoryDto(
-    val id: Long,
+    val id: Long? = null,
     val text: String,
     @SerialName("first_name") val firstName: String? = null,
     @SerialName("mother_name") val motherName: String? = null,
@@ -52,7 +55,10 @@ data class HistoryInsertFallbackDto(
     val timestamp: String
 )
 
-class HistoryManager(private val getDeviceId: (suspend () -> String)? = null) {
+class HistoryManager(
+    private val historyDao: HistoryDao,
+    private val getDeviceId: suspend () -> String
+) {
     private val supabase = createSupabaseClient(
         supabaseUrl = BuildConfig.SUPABASE_URL,
         supabaseKey = BuildConfig.SUPABASE_KEY
@@ -65,6 +71,33 @@ class HistoryManager(private val getDeviceId: (suspend () -> String)? = null) {
     val historyList: StateFlow<List<HistoryItem>> = _historyList.asStateFlow()
 
     init {
+        // Local-First: Collect local Room DB items continuously
+        scope.launch {
+            historyDao.getAllHistory().collectLatest { entities ->
+                val devId = getDeviceId()
+                val localItems = entities
+                    .filter { it.deviceId == null || devId.isEmpty() || it.deviceId == devId }
+                    .map { entity ->
+                        HistoryItem(
+                            id = entity.id,
+                            text = entity.text,
+                            firstName = entity.firstName,
+                            motherName = entity.motherName,
+                            result = entity.result,
+                            answer = entity.answer,
+                            type = try {
+                                AbjadType.valueOf(entity.type)
+                            } catch (_: Exception) {
+                                AbjadType.JAFR_15
+                            },
+                            timestamp = entity.timestamp
+                        )
+                    }
+                _historyList.value = localItems
+            }
+        }
+
+        // Online Sync: Sync with Supabase on startup
         scope.launch {
             refreshHistory()
         }
@@ -73,51 +106,47 @@ class HistoryManager(private val getDeviceId: (suspend () -> String)? = null) {
     suspend fun refreshHistory() {
         withContext(Dispatchers.IO) {
             try {
-                val devId = getDeviceId?.invoke() ?: ""
-                val dtos = if (devId.isNotEmpty()) {
-                    try {
-                        val filtered = supabase.from("jafr_history")
-                            .select {
-                                filter { eq("device_id", devId) }
-                                order("id", Order.DESCENDING)
-                            }
-                            .decodeList<HistoryDto>()
+                val devId = getDeviceId()
+                if (devId.isEmpty()) return@withContext
 
-                        filtered.ifEmpty {
-                            supabase.from("jafr_history")
-                                .select {
-                                    order("id", Order.DESCENDING)
-                                }
-                                .decodeList<HistoryDto>()
-                        }
-                    } catch (_: Exception) {
-                        supabase.from("jafr_history")
-                            .select {
-                                order("id", Order.DESCENDING)
-                            }
-                            .decodeList<HistoryDto>()
-                    }
-                } else {
+                // STRICT FILTERING: Fetch ONLY items belonging to THIS device
+                // NEVER fall back to fetching all records!
+                val dtos = try {
                     supabase.from("jafr_history")
                         .select {
+                            filter { eq("device_id", devId) }
                             order("id", Order.DESCENDING)
                         }
                         .decodeList<HistoryDto>()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    emptyList()
                 }
 
-                val items = dtos.map { dto ->
-                    HistoryItem(
-                        id = dto.id,
-                        text = dto.text,
-                        firstName = dto.firstName,
-                        motherName = dto.motherName,
-                        result = dto.result,
-                        answer = dto.answer,
-                        type = try { AbjadType.valueOf(dto.type) } catch (_: Exception) { AbjadType.JAFR_15 },
-                        timestamp = dto.timestamp
-                    )
+                if (dtos.isNotEmpty()) {
+                    val existingEntities = historyDao.getAllHistoryList()
+                    val dtosToInsert = dtos.filter { dto ->
+                        existingEntities.none { local ->
+                            local.timestamp == dto.timestamp && local.text == dto.text
+                        }
+                    }
+
+                    if (dtosToInsert.isNotEmpty()) {
+                        val entitiesToInsert = dtosToInsert.map { dto ->
+                            HistoryEntity(
+                                text = dto.text,
+                                firstName = dto.firstName,
+                                motherName = dto.motherName,
+                                result = dto.result,
+                                answer = dto.answer,
+                                type = dto.type,
+                                timestamp = dto.timestamp,
+                                deviceId = devId
+                            )
+                        }
+                        historyDao.insertItems(entitiesToInsert)
+                    }
                 }
-                _historyList.value = items
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -127,37 +156,46 @@ class HistoryManager(private val getDeviceId: (suspend () -> String)? = null) {
     suspend fun addHistoryItem(item: HistoryItem) {
         withContext(Dispatchers.IO) {
             try {
+                val devId = getDeviceId()
                 val current = _historyList.value
                 val cleanItemText = AbjadUtils.stripYaHoo(item.text)
 
-                // Check for exact duplicate
+                // Check for exact duplicate locally
                 val exactDuplicate = current.take(10).any {
                     AbjadUtils.stripYaHoo(it.text) == cleanItemText &&
-                    it.answer == item.answer &&
-                    it.type == item.type
+                            it.answer == item.answer &&
+                            it.type == item.type
                 }
-
                 if (exactDuplicate) return@withContext
 
-                // Delete previous incomplete/partial edits of the same question
+                // Delete previous incomplete/partial edits of the same question locally & remotely
                 val previousIncompleteMatch = current.take(15).firstOrNull { existing ->
                     existing.type == item.type &&
-                    ((existing.firstName != null && item.firstName != null &&
-                      existing.firstName == item.firstName && existing.motherName == item.motherName) ||
-                     existing.text.trim() == cleanItemText) &&
-                    (cleanItemText.startsWith(existing.text.trim().removeSuffix("؟").removeSuffix("?").trim()) ||
-                     existing.text.trim().startsWith(cleanItemText.removeSuffix("؟").removeSuffix("?").trim()))
+                            ((existing.firstName != null && item.firstName != null &&
+                                    existing.firstName == item.firstName && existing.motherName == item.motherName) ||
+                                    existing.text.trim() == cleanItemText) &&
+                            (cleanItemText.startsWith(existing.text.trim().removeSuffix("؟").removeSuffix("?").trim()) ||
+                                    existing.text.trim().startsWith(cleanItemText.removeSuffix("؟").removeSuffix("?").trim()))
                 }
 
                 if (previousIncompleteMatch != null) {
-                    try {
-                        supabase.from("jafr_history").delete {
-                            filter { eq("id", previousIncompleteMatch.id) }
-                        }
-                    } catch (_: Exception) {}
+                    deleteHistoryItem(previousIncompleteMatch.id)
                 }
 
-                val devId = getDeviceId?.invoke() ?: ""
+                // 1. SAVE TO ROOM DATABASE FIRST (Local-First)
+                val newEntity = HistoryEntity(
+                    text = cleanItemText,
+                    firstName = item.firstName,
+                    motherName = item.motherName,
+                    result = item.result,
+                    answer = item.answer,
+                    type = item.type.name,
+                    timestamp = item.timestamp,
+                    deviceId = devId.ifEmpty { null }
+                )
+                historyDao.insertItem(newEntity)
+
+                // 2. ONLINE SYNC TO SUPABASE
                 try {
                     val dto = HistoryInsertDto(
                         text = cleanItemText,
@@ -171,18 +209,21 @@ class HistoryManager(private val getDeviceId: (suspend () -> String)? = null) {
                     )
                     supabase.from("jafr_history").insert(dto)
                 } catch (_: Exception) {
-                    val fallbackDto = HistoryInsertFallbackDto(
-                        text = cleanItemText,
-                        firstName = item.firstName,
-                        motherName = item.motherName,
-                        result = item.result,
-                        answer = item.answer,
-                        type = item.type.name,
-                        timestamp = item.timestamp
-                    )
-                    supabase.from("jafr_history").insert(fallbackDto)
+                    try {
+                        val fallbackDto = HistoryInsertFallbackDto(
+                            text = cleanItemText,
+                            firstName = item.firstName,
+                            motherName = item.motherName,
+                            result = item.result,
+                            answer = item.answer,
+                            type = item.type.name,
+                            timestamp = item.timestamp
+                        )
+                        supabase.from("jafr_history").insert(fallbackDto)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
                 }
-                refreshHistory()
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -192,12 +233,30 @@ class HistoryManager(private val getDeviceId: (suspend () -> String)? = null) {
     suspend fun deleteHistoryItem(id: Long) {
         withContext(Dispatchers.IO) {
             try {
-                supabase.from("jafr_history").delete {
-                    filter {
-                        eq("id", id)
+                val item = _historyList.value.find { it.id == id }
+                val devId = getDeviceId()
+
+                // Delete locally from Room
+                historyDao.deleteItem(id)
+
+                // Delete remotely from Supabase strictly filtering by device_id
+                if (item != null && devId.isNotEmpty()) {
+                    try {
+                        supabase.from("jafr_history").delete {
+                            filter {
+                                eq("device_id", devId)
+                                eq("timestamp", item.timestamp)
+                                eq("text", AbjadUtils.stripYaHoo(item.text))
+                            }
+                        }
+                    } catch (_: Exception) {
+                        try {
+                            supabase.from("jafr_history").delete {
+                                filter { eq("id", id) }
+                            }
+                        } catch (_: Exception) {}
                     }
                 }
-                refreshHistory()
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -207,13 +266,21 @@ class HistoryManager(private val getDeviceId: (suspend () -> String)? = null) {
     suspend fun clearHistory() {
         withContext(Dispatchers.IO) {
             try {
-                val allItems = _historyList.value
-                allItems.forEach { item ->
-                    supabase.from("jafr_history").delete {
-                        filter { eq("id", item.id) }
+                val devId = getDeviceId()
+
+                // 1. Clear local Room database
+                historyDao.clearHistory()
+
+                // 2. Delete ONLY this device's records from Supabase
+                if (devId.isNotEmpty()) {
+                    try {
+                        supabase.from("jafr_history").delete {
+                            filter { eq("device_id", devId) }
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
                     }
                 }
-                refreshHistory()
             } catch (e: Exception) {
                 e.printStackTrace()
             }
