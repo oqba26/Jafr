@@ -1,7 +1,7 @@
 {
   "versionCode": 9,
-  "versionName": "1.2.5",
+  "versionName": "v1.2.5",
   "url": "https://github.com/oqba26/Jafr/releases/download/v1.2.5/Jafr-v1.2.5.apk",
-  "releaseNotes": "• اصلاح و پایداری همگام‌سازی آنلاین Supabase با شناسه سخت‌افزاری دستگاه\n• ذخیره‌سازی همزمان و خودکار جفر ۱۵ سطری و جفر عددی/وفقی برای هر سوال\n• تفکیک کامل و قطعی تاریخچه کاربران",
+  "releaseNotes": "نسخه جدید برنامه منتشر شد",
   "isForceUpdate": false
 }
