@@ -99,47 +99,50 @@ fun AbjadCalculatorScreen(
         else null
     }
 
-    // حذف ذخیره‌سازی خودکار برای انواع دیگر ابجد و جلوگیری از تکرار در جفر
+    // ذخیره‌سازی همزمان جفر ۱۵ سطری و جفر عددی/وفقی برای هر سوال کامل
     var lastSavedText by remember { mutableStateOf("") }
-    var lastSavedType by remember { mutableStateOf<AbjadType?>(null) }
 
-    LaunchedEffect(jafrResult, jafrNumericalResult) {
+    LaunchedEffect(cleanUserText, isQuestionComplete) {
         if (isQuestionComplete && cleanUserText.isNotEmpty()) {
             delay(1500.milliseconds) // وقفه ۱.۵ ثانیه‌ای برای اطمینان از پایان تایپ (Debounce)
             val trimmedText = cleanUserText.trim()
-            
-            if (trimmedText != lastSavedText || selectedType != lastSavedType) {
+
+            if (trimmedText != lastSavedText) {
                 val pDate = PersianDate()
                 val formatter = PersianDateFormat("Y/m/d H:i:s")
                 val timestamp = formatter.format(pDate)
 
-                if (selectedType == AbjadType.JAFR_15 && jafrResult != null) {
-                    val currentItem = HistoryItem(
+                // 1. محاسبه و ذخیره جفر ۱۵ سطری
+                val j15Res = AbjadUtils.calculateJafr15(trimmedText, selectedNadhira, pDate)
+                if (j15Res != null) {
+                    val item15 = HistoryItem(
                         text = trimmedText,
                         firstName = names.first,
                         motherName = names.second,
                         result = 0,
-                        answer = jafrResult.answer,
-                        type = selectedType,
+                        answer = j15Res.answer,
+                        type = AbjadType.JAFR_15,
                         timestamp = timestamp
                     )
-                    historyManager.addHistoryItem(currentItem)
-                    lastSavedText = trimmedText
-                    lastSavedType = selectedType
-                } else if (selectedType == AbjadType.JAFR_NUMERICAL && jafrNumericalResult != null) {
-                    val currentItem = HistoryItem(
+                    historyManager.addHistoryItem(item15)
+                }
+
+                // 2. محاسبه و ذخیره جفر عددی و وفقی
+                val jNumRes = JafrNumericalUtils.calculateNumericalJafr(trimmedText)
+                if (jNumRes != null) {
+                    val itemNum = HistoryItem(
                         text = trimmedText,
                         firstName = names.first,
                         motherName = names.second,
-                        result = jafrNumericalResult.wafd,
-                        answer = jafrNumericalResult.verdict,
-                        type = selectedType,
+                        result = jNumRes.wafd,
+                        answer = jNumRes.verdict,
+                        type = AbjadType.JAFR_NUMERICAL,
                         timestamp = timestamp
                     )
-                    historyManager.addHistoryItem(currentItem)
-                    lastSavedText = trimmedText
-                    lastSavedType = selectedType
+                    historyManager.addHistoryItem(itemNum)
                 }
+
+                lastSavedText = trimmedText
             }
         }
     }

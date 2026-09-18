@@ -1,6 +1,7 @@
 package com.oqba26.jafr
 
 import android.content.Context
+import android.provider.Settings
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -18,7 +19,6 @@ class SettingsManager(private val context: Context) {
         val SHOW_KABIR_KEY = booleanPreferencesKey("show_kabir")
         val SHOW_SAGHIR_KEY = booleanPreferencesKey("show_saghir")
         val SHOW_WASAIT_KEY = booleanPreferencesKey("show_wasait")
-        val DEVICE_ID_KEY = stringPreferencesKey("device_id")
     }
 
     val selectedFont: Flow<String> = context.dataStore.data.map { preferences ->
@@ -41,19 +41,24 @@ class SettingsManager(private val context: Context) {
         preferences[SHOW_WASAIT_KEY] ?: false
     }
 
-
-    suspend fun getOrCreateDeviceId(): String {
-        var id = ""
-        context.dataStore.edit { preferences ->
-            val current = preferences[DEVICE_ID_KEY]
-            if (current.isNullOrEmpty()) {
-                id = UUID.randomUUID().toString()
-                preferences[DEVICE_ID_KEY] = id
-            } else {
-                id = current
-            }
+    fun getDeviceId(): String {
+        val androidId = try {
+            Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
+        } catch (_: Exception) {
+            null
         }
-        return id
+
+        if (!androidId.isNullOrBlank() && androidId != "9774d56d682e549c") {
+            return androidId
+        }
+
+        val prefs = context.getSharedPreferences("jafr_prefs", Context.MODE_PRIVATE)
+        var savedId = prefs.getString("device_id", null)
+        if (savedId.isNullOrBlank()) {
+            savedId = UUID.randomUUID().toString()
+            prefs.edit().putString("device_id", savedId).apply()
+        }
+        return savedId
     }
 
     suspend fun saveFont(fontName: String) {

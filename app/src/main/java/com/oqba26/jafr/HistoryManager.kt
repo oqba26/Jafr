@@ -1,5 +1,6 @@
 package com.oqba26.jafr
 
+import android.util.Log
 import com.oqba26.jafr.data.HistoryDao
 import com.oqba26.jafr.data.HistoryEntity
 import com.oqba26.jafr.model.HistoryItem
@@ -41,23 +42,12 @@ data class HistoryInsertDto(
     val answer: String? = null,
     val type: String,
     val timestamp: String,
-    @SerialName("device_id") val deviceId: String? = null
-)
-
-@Serializable
-data class HistoryInsertFallbackDto(
-    val text: String,
-    @SerialName("first_name") val firstName: String? = null,
-    @SerialName("mother_name") val motherName: String? = null,
-    val result: Int,
-    val answer: String? = null,
-    val type: String,
-    val timestamp: String
+    @SerialName("device_id") val deviceId: String
 )
 
 class HistoryManager(
     private val historyDao: HistoryDao,
-    private val getDeviceId: suspend () -> String
+    private val getDeviceId: () -> String
 ) {
     private val supabase = createSupabaseClient(
         supabaseUrl = BuildConfig.SUPABASE_URL,
@@ -71,7 +61,7 @@ class HistoryManager(
     val historyList: StateFlow<List<HistoryItem>> = _historyList.asStateFlow()
 
     init {
-        // Local-First: Collect local Room DB items continuously
+        // 1. Local-First: Collect local Room DB items continuously
         scope.launch {
             historyDao.getAllHistory().collectLatest { entities ->
                 val devId = getDeviceId()
@@ -97,7 +87,7 @@ class HistoryManager(
             }
         }
 
-        // Online Sync: Sync with Supabase on startup
+        // 2. Online Sync: Sync with Supabase on startup
         scope.launch {
             refreshHistory()
         }
@@ -109,8 +99,7 @@ class HistoryManager(
                 val devId = getDeviceId()
                 if (devId.isEmpty()) return@withContext
 
-                // STRICT FILTERING: Fetch ONLY items belonging to THIS device
-                // NEVER fall back to fetching all records!
+                // Fetch remote items strictly for THIS deviceId
                 val dtos = try {
                     supabase.from("jafr_history")
                         .select {
@@ -119,7 +108,7 @@ class HistoryManager(
                         }
                         .decodeList<HistoryDto>()
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    Log.e("HistoryManager", "Error fetching from Supabase", e)
                     emptyList()
                 }
 
@@ -127,7 +116,7 @@ class HistoryManager(
                     val existingEntities = historyDao.getAllHistoryList()
                     val dtosToInsert = dtos.filter { dto ->
                         existingEntities.none { local ->
-                            local.timestamp == dto.timestamp && local.text == dto.text
+                            local.timestamp == dto.timestamp && local.text == dto.text && local.type == dto.type
                         }
                     }
 
@@ -148,7 +137,7 @@ class HistoryManager(
                     }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("HistoryManager", "Refresh history error", e)
             }
         }
     }
@@ -191,7 +180,7 @@ class HistoryManager(
                     answer = item.answer,
                     type = item.type.name,
                     timestamp = item.timestamp,
-                    deviceId = devId.ifEmpty { null }
+                    deviceId = devId
                 )
                 historyDao.insertItem(newEntity)
 
@@ -205,27 +194,14 @@ class HistoryManager(
                         answer = item.answer,
                         type = item.type.name,
                         timestamp = item.timestamp,
-                        deviceId = devId.ifEmpty { null }
+                        deviceId = devId
                     )
                     supabase.from("jafr_history").insert(dto)
-                } catch (_: Exception) {
-                    try {
-                        val fallbackDto = HistoryInsertFallbackDto(
-                            text = cleanItemText,
-                            firstName = item.firstName,
-                            motherName = item.motherName,
-                            result = item.result,
-                            answer = item.answer,
-                            type = item.type.name,
-                            timestamp = item.timestamp
-                        )
-                        supabase.from("jafr_history").insert(fallbackDto)
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
+                } catch (e: Exception) {
+                    Log.e("HistoryManager", "Error inserting to Supabase", e)
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("HistoryManager", "Error adding history item", e)
             }
         }
     }
@@ -249,16 +225,12 @@ class HistoryManager(
                                 eq("text", AbjadUtils.stripYaHoo(item.text))
                             }
                         }
-                    } catch (_: Exception) {
-                        try {
-                            supabase.from("jafr_history").delete {
-                                filter { eq("id", id) }
-                            }
-                        } catch (_: Exception) {}
+                    } catch (e: Exception) {
+                        Log.e("HistoryManager", "Error deleting from Supabase", e)
                     }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("HistoryManager", "Error deleting history item", e)
             }
         }
     }
@@ -278,11 +250,11 @@ class HistoryManager(
                             filter { eq("device_id", devId) }
                         }
                     } catch (e: Exception) {
-                        e.printStackTrace()
+                        Log.e("HistoryManager", "Error clearing Supabase history", e)
                     }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("HistoryManager", "Error clearing history", e)
             }
         }
     }

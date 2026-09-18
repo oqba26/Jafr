@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
             val historyManager = remember {
                 HistoryManager(
                     historyDao = database.historyDao(),
-                    getDeviceId = { settingsManager.getOrCreateDeviceId() }
+                    getDeviceId = { settingsManager.getDeviceId() }
                 )
             }
             val selectedFont by settingsManager.selectedFont.collectAsState(initial = "vazirmatn")
