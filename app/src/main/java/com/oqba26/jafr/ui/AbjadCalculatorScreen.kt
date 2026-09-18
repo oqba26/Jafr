@@ -81,7 +81,7 @@ fun AbjadCalculatorScreen(
 
     val cleanUserText = remember(tfValue.text) { AbjadUtils.stripYaHoo(tfValue.text) }
 
-    val names: Pair<String?, String?>
+    val names = remember(cleanUserText) { AbjadUtils.extractNames(cleanUserText) }
     val isQuestionComplete = remember(cleanUserText) {
         val trimmed = cleanUserText.trim()
         (trimmed.endsWith("؟") || trimmed.endsWith("?")) && (trimmed.length > 10)

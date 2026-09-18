@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
@@ -19,11 +20,13 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -151,7 +154,10 @@ class UpdateManager(private val context: Context) {
                         val statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
                         val status = cursor.getInt(statusIndex)
                         if (status == DownloadManager.STATUS_SUCCESSFUL) {
-                            installApk(fileName)
+                            CoroutineScope(Dispatchers.Main).launch {
+                                delay(800.milliseconds)
+                                installApk(fileName)
+                            }
                         } else {
                             val reasonIndex = cursor.getColumnIndex(DownloadManager.COLUMN_REASON)
                             val reason = cursor.getInt(reasonIndex)
@@ -211,8 +217,8 @@ class UpdateManager(private val context: Context) {
 
     private fun installApk(fileName: String) {
         val apkFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
-        if (!apkFile.exists()) {
-            Toast.makeText(context, "فایل نصب پیدا نشد!", Toast.LENGTH_SHORT).show()
+        if (!apkFile.exists() || apkFile.length() == 0L) {
+            Toast.makeText(context, "فایل نصب پیدا نشد یا کاملاً دریافت نشده است!", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -227,6 +233,20 @@ class UpdateManager(private val context: Context) {
                 setDataAndType(contentUri, "application/vnd.android.package-archive")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
             }
+
+            val resInfoList = context.packageManager.queryIntentActivities(
+                intent,
+                PackageManager.MATCH_DEFAULT_ONLY
+            )
+            for (resolveInfo in resInfoList) {
+                val packageName = resolveInfo.activityInfo.packageName
+                context.grantUriPermission(
+                    packageName,
+                    contentUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+
             context.startActivity(intent)
         } catch (e: Exception) {
             Toast.makeText(context, "خطا در اجرای فایل نصب", Toast.LENGTH_SHORT).show()
