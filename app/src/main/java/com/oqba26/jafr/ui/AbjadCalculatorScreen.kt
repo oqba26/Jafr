@@ -1,5 +1,7 @@
 package com.oqba26.jafr.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.graphicsLayer
@@ -9,6 +11,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,6 +22,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import com.oqba26.jafr.AbjadType
 import com.oqba26.jafr.AbjadUtils
@@ -29,6 +36,8 @@ import com.oqba26.jafr.SpellAnalysis
 import com.oqba26.jafr.TabayeAnalysis
 import com.oqba26.jafr.TopicAnalysis
 import com.oqba26.jafr.model.HistoryItem
+import com.oqba26.jafr.util.JafrNumericalResult
+import com.oqba26.jafr.util.JafrNumericalUtils
 import com.oqba26.jafr.util.PersianNumberVisualTransformation
 import saman.zamani.persiandate.PersianDate
 import saman.zamani.persiandate.PersianDateFormat
@@ -45,14 +54,19 @@ fun AbjadCalculatorScreen(
     onTextChange: (String) -> Unit = {},
 ) {
     val prefix = "یا هو "
-    var text by remember(initialText) { 
+    var tfValue by remember(initialText) {
+        val initialCombined = when {
+            initialText.isEmpty() -> prefix
+            initialText.startsWith(prefix) -> initialText
+            initialText.startsWith("یا هو") -> prefix + initialText.removePrefix("یا هو").trimStart()
+            else -> prefix + initialText.trimStart()
+        }
         mutableStateOf(
-            when {
-                initialText.isEmpty() -> prefix
-                initialText.startsWith(prefix) -> initialText
-                else -> prefix + initialText
-            }
-        ) 
+            TextFieldValue(
+                text = initialCombined,
+                selection = TextRange(initialCombined.length)
+            )
+        )
     }
     var selectedNadhira by remember { mutableStateOf(NadhiraType.ABJAD) }
     
@@ -61,56 +75,74 @@ fun AbjadCalculatorScreen(
     var offsetY by remember { mutableFloatStateOf(0f) }
 
     // همگام سازی متن داخلی با تغییرات بیرونی
-    LaunchedEffect(text) {
-        onTextChange(text)
+    LaunchedEffect(tfValue.text) {
+        onTextChange(tfValue.text)
     }
 
-    val names = remember(text) { AbjadUtils.extractNames(text) }
-    val isQuestionComplete = remember(text, names) {
-        val trimmed = text.trim()
-        (trimmed.endsWith("؟") || trimmed.endsWith("?")) &&
-            (names.first != null) && (names.second != null) &&
-            (trimmed.length > 10) // حداقل طول برای جلوگیری از ورودی‌های خیلی کوتاه مثل «؟»
+    val cleanUserText = remember(tfValue.text) { AbjadUtils.stripYaHoo(tfValue.text) }
+
+    val names = remember(cleanUserText) { AbjadUtils.extractNames(cleanUserText) }
+    val isQuestionComplete = remember(cleanUserText) {
+        val trimmed = cleanUserText.trim()
+        (trimmed.endsWith("؟") || trimmed.endsWith("?")) && (trimmed.length > 10)
     }
 
-    val result = remember(text, selectedType) { AbjadUtils.calculate(text, selectedType) }
-    val jafrResult = remember(text, selectedType, selectedNadhira, isQuestionComplete) { 
-        if (selectedType == AbjadType.JAFR_15 && isQuestionComplete) 
-            AbjadUtils.calculateJafr15(text, selectedNadhira, PersianDate()) 
+    val result = remember(cleanUserText, selectedType) { AbjadUtils.calculate(cleanUserText, selectedType) }
+    val jafrResult = remember(cleanUserText, selectedType, selectedNadhira, isQuestionComplete) { 
+        if (selectedType == AbjadType.JAFR_15 && isQuestionComplete && cleanUserText.isNotEmpty()) 
+            AbjadUtils.calculateJafr15(cleanUserText, selectedNadhira, PersianDate()) 
         else null 
+    }
+    val jafrNumericalResult = remember(cleanUserText, selectedType, isQuestionComplete) {
+        if (selectedType == AbjadType.JAFR_NUMERICAL && isQuestionComplete && cleanUserText.isNotEmpty())
+            JafrNumericalUtils.calculateNumericalJafr(cleanUserText)
+        else null
     }
 
     // حذف ذخیره‌سازی خودکار برای انواع دیگر ابجد و جلوگیری از تکرار در جفر
     var lastSavedText by remember { mutableStateOf("") }
     var lastSavedType by remember { mutableStateOf<AbjadType?>(null) }
 
-    LaunchedEffect(jafrResult) {
-        if (jafrResult != null && isQuestionComplete && selectedType == AbjadType.JAFR_15) {
+    LaunchedEffect(jafrResult, jafrNumericalResult) {
+        if (isQuestionComplete && cleanUserText.isNotEmpty()) {
             delay(1500.milliseconds) // وقفه ۱.۵ ثانیه‌ای برای اطمینان از پایان تایپ (Debounce)
-            val trimmedText = text.trim()
+            val trimmedText = cleanUserText.trim()
             
-            // فقط اگر متن (بدون فاصله‌های اضافه) یا نوع تغییر کرده باشد و قبلاً ذخیره نشده باشد
             if (trimmedText != lastSavedText || selectedType != lastSavedType) {
                 val pDate = PersianDate()
                 val formatter = PersianDateFormat("Y/m/d H:i:s")
                 val timestamp = formatter.format(pDate)
 
-                val currentItem = HistoryItem(
-                    text = trimmedText,
-                    firstName = names.first,
-                    motherName = names.second,
-                    result = 0,
-                    answer = jafrResult.answer,
-                    type = selectedType,
-                    timestamp = timestamp
-                )
-                historyManager.addHistoryItem(currentItem)
-                lastSavedText = trimmedText
-                lastSavedType = selectedType
+                if (selectedType == AbjadType.JAFR_15 && jafrResult != null) {
+                    val currentItem = HistoryItem(
+                        text = trimmedText,
+                        firstName = names.first,
+                        motherName = names.second,
+                        result = 0,
+                        answer = jafrResult.answer,
+                        type = selectedType,
+                        timestamp = timestamp
+                    )
+                    historyManager.addHistoryItem(currentItem)
+                    lastSavedText = trimmedText
+                    lastSavedType = selectedType
+                } else if (selectedType == AbjadType.JAFR_NUMERICAL && jafrNumericalResult != null) {
+                    val currentItem = HistoryItem(
+                        text = trimmedText,
+                        firstName = names.first,
+                        motherName = names.second,
+                        result = jafrNumericalResult.wafd,
+                        answer = jafrNumericalResult.verdict,
+                        type = selectedType,
+                        timestamp = timestamp
+                    )
+                    historyManager.addHistoryItem(currentItem)
+                    lastSavedText = trimmedText
+                    lastSavedType = selectedType
+                }
             }
         }
     }
-
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -156,15 +188,24 @@ fun AbjadCalculatorScreen(
         }
 
         OutlinedTextField(
-            value = text,
-            onValueChange = { newVal ->
-                text = if (newVal.length < prefix.length) {
-                    prefix
-                } else if (!newVal.startsWith(prefix)) {
-                    prefix + newVal.trimStart()
-                } else {
-                    newVal
+            value = tfValue,
+            onValueChange = { newValue ->
+                var newText = newValue.text
+                if (!newText.startsWith("یا هو")) {
+                    val userPortion = newText.removePrefix("یا").removePrefix("هو").trimStart()
+                    newText = prefix + userPortion
+                } else if (newText.length < prefix.length) {
+                    newText = prefix
                 }
+
+                val minSelection = prefix.length
+                val newSelStart = maxOf(minSelection, newValue.selection.start)
+                val newSelEnd = maxOf(minSelection, newValue.selection.end)
+
+                tfValue = newValue.copy(
+                    text = newText,
+                    selection = TextRange(newSelStart, newSelEnd)
+                )
             },
             label = { Text("متن یا نام را وارد کنید") },
             modifier = Modifier.fillMaxWidth(),
@@ -185,17 +226,6 @@ fun AbjadCalculatorScreen(
                         JafrAnswerCard(jafrResult)
                     }
                     val taqsimat = jafrResult.taqsimat
-                    taqsimat?.tabaye?.let { tb ->
-                        item {
-                            TabayeCard(tb)
-                        }
-                    }
-                    item {
-                        JafrRulesCard(text)
-                    }
-                    item {
-                        KulleSirrInfoCard()
-                    }
                     if (taqsimat?.spell != null) {
                         item {
                             SpellCard(taqsimat.spell, taqsimat.direction)
@@ -206,12 +236,60 @@ fun AbjadCalculatorScreen(
                             TopicCard(topic)
                         }
                     }
+                    taqsimat?.tabaye?.let { tb ->
+                        item {
+                            TabayeCard(tb)
+                        }
+                    }
+                    item {
+                        JafrRulesCard(cleanUserText)
+                    }
                     items(jafrResult.rows) { row ->
                         JafrRowCard(row)
                     }
                 }
-            } else if (text.isNotBlank()) {
-                // نمایش راهنما در صورت ناقص بودن سوال
+            } else if (cleanUserText.isNotBlank()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "متن وارد شده ناقص است.",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "لطفاً سوال را به صورت کامل همراه با نام، نام مادر و علامت سوال در انتها وارد کنید.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Text(
+                            "نمونه صحیح: آیا محمد زاده مریم در کار خود موفق می‌شود؟",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                }
+            }
+        } else if (selectedType == AbjadType.JAFR_NUMERICAL) {
+            if (jafrNumericalResult != null) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item {
+                        JafrNumericalCard(jafrNumericalResult)
+                    }
+                    val tabaye = AbjadUtils.analyzeTabaye(cleanUserText)
+                    item {
+                        TabayeCard(tabaye)
+                    }
+                }
+            } else if (cleanUserText.isNotBlank()) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -239,62 +317,60 @@ fun AbjadCalculatorScreen(
                 }
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text("مقدار نهایی (${selectedType.label}):")
-                            Text(
-                                text = AbjadUtils.toPersianNumber(result.total),
-                                style = MaterialTheme.typography.displayMedium,
-                                fontWeight = FontWeight.Black
-                            )
-                        }
-                    }
-                }
-
-                if (result.breakdown.isNotEmpty()) {
+            if (cleanUserText.isNotBlank()) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
                     item {
-                        Column {
-                            Text(
-                                "تفکیک حروف:",
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = TextAlign.Right,
-                                style = MaterialTheme.typography.titleSmall
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            FlowRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                result.breakdown.forEach { (char, value) ->
-                                    LetterCard(char, value)
-                                }
+                                Text("مقدار نهایی (${selectedType.label}):")
+                                Text(
+                                    text = AbjadUtils.toPersianNumber(result.total),
+                                    style = MaterialTheme.typography.displayMedium,
+                                    fontWeight = FontWeight.Black
+                                )
                             }
                         }
                     }
 
-                    val tabaye = AbjadUtils.analyzeTabaye(text)
-                    item {
-                        TabayeCard(tabaye)
-                    }
+                    if (result.breakdown.isNotEmpty()) {
+                        item {
+                            Column {
+                                Text(
+                                    "تفکیک حروف:",
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = TextAlign.Right,
+                                    style = MaterialTheme.typography.titleSmall
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    result.breakdown.forEach { (char, value) ->
+                                        LetterCard(char, value)
+                                    }
+                                }
+                            }
+                        }
 
-                    item {
-                        JafrRulesCard(text)
-                    }
+                        val tabaye = AbjadUtils.analyzeTabaye(cleanUserText)
+                        item {
+                            TabayeCard(tabaye)
+                        }
 
-                    item {
-                        KulleSirrInfoCard()
+                        item {
+                            JafrRulesCard(cleanUserText)
+                        }
                     }
                 }
             }
@@ -599,10 +675,16 @@ fun topicAccent(topicName: String): Color = when (topicName) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun TopicCard(topic: TopicAnalysis) {
+fun TopicCard(
+    topic: TopicAnalysis,
+    initialExpanded: Boolean = false
+) {
+    var isExpanded by remember { mutableStateOf(initialExpanded) }
     val accent = topicAccent(topic.topic)
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { isExpanded = !isExpanded },
         colors = CardDefaults.cardColors(
             containerColor = accent.copy(alpha = 0.12f),
             contentColor = MaterialTheme.colorScheme.onSurface
@@ -610,7 +692,10 @@ fun TopicCard(topic: TopicAnalysis) {
         border = BorderStroke(1.dp, accent.copy(alpha = 0.45f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text(
                     text = "تحلیل موضوع: ${topic.topic}",
                     style = MaterialTheme.typography.titleMedium,
@@ -619,53 +704,63 @@ fun TopicCard(topic: TopicAnalysis) {
                     modifier = Modifier.weight(1f)
                 )
                 DispositionBadge(topic.level)
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (isExpanded) "بستن" else "باز کردن",
+                    tint = accent
+                )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                topic.highlights.forEach { (key, value) ->
-                    TopicHighlightChip(key, value, accent)
+            AnimatedVisibility(visible = isExpanded) {
+                Column {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        topic.highlights.forEach { (key, value) ->
+                            TopicHighlightChip(key, value, accent)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    topic.indicators.forEach { indicator ->
+                        Text(
+                            text = "• $indicator",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(vertical = 2.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "نتیجه:",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                    Text(
+                        text = topic.verdict,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "یادآوری: قرائن حروف نشانه‌گر است نه علم غیب؛ تصمیم نهایی با شماست.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                    )
+                    topic.notice?.let { notice ->
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = notice,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = topicAccent(topic.topic).copy(alpha = 0.9f)
+                        )
+                    }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-            topic.indicators.forEach { indicator ->
-                Text(
-                    text = "• $indicator",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(vertical = 2.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "نتیجه:",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-            )
-            Text(
-                text = topic.verdict,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "یادآوری: قرائن حروف نشانه‌گر است نه علم غیب؛ تصمیم نهایی با شماست.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
-            )
-            topic.notice?.let { notice ->
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = notice,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = topicAccent(topic.topic).copy(alpha = 0.9f)
-                )
             }
         }
     }
@@ -816,15 +911,24 @@ fun SpellCard(spell: SpellAnalysis, direction: String) {
 }
 
 @Composable
-fun TabayeCard(tabaye: TabayeAnalysis) {
+fun TabayeCard(
+    tabaye: TabayeAnalysis,
+    initialExpanded: Boolean = false
+) {
+    var isExpanded by remember { mutableStateOf(initialExpanded) }
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { isExpanded = !isExpanded },
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text(
                     text = "تحلیل طبایع چهارگانه حروف",
                     style = MaterialTheme.typography.titleMedium,
@@ -844,29 +948,38 @@ fun TabayeCard(tabaye: TabayeAnalysis) {
                         fontWeight = FontWeight.Bold
                     )
                 }
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (isExpanded) "بستن" else "باز کردن"
+                )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            AnimatedVisibility(visible = isExpanded) {
+                Column {
+                    Spacer(modifier = Modifier.height(12.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                ElementBarItem("آتش (ناری)", tabaye.fireCount, tabaye.firePercent, Color(Element.FIRE.colorHex))
-                ElementBarItem("باد (هوایی)", tabaye.airCount, tabaye.airPercent, Color(Element.AIR.colorHex))
-                ElementBarItem("آب (مائی)", tabaye.waterCount, tabaye.waterPercent, Color(Element.WATER.colorHex))
-                ElementBarItem("خاک (ترابی)", tabaye.earthCount, tabaye.earthPercent, Color(Element.EARTH.colorHex))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        ElementBarItem("آتش (ناری)", tabaye.fireCount, tabaye.firePercent, Color(Element.FIRE.colorHex))
+                        ElementBarItem("باد (هوایی)", tabaye.airCount, tabaye.airPercent, Color(Element.AIR.colorHex))
+                        ElementBarItem("آب (مائی)", tabaye.waterCount, tabaye.waterPercent, Color(Element.WATER.colorHex))
+                        ElementBarItem("خاک (ترابی)", tabaye.earthCount, tabaye.earthPercent, Color(Element.EARTH.colorHex))
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = tabaye.recommendation,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = tabaye.recommendation,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium
-            )
         }
     }
 }
@@ -891,80 +1004,20 @@ fun ElementBarItem(label: String, count: Int, percent: Int, color: Color) {
 }
 
 @Composable
-fun JafrRulesCard(text: String) {
+fun JafrRulesCard(
+    text: String,
+    initialExpanded: Boolean = false
+) {
+    var isExpanded by remember { mutableStateOf(initialExpanded) }
     var selectedRule by remember { mutableStateOf(JafrRuleType.TARAQQI) }
     val ruleResult = remember(text, selectedRule) { AbjadUtils.applyJafrRule(text, selectedRule) }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { isExpanded = !isExpanded },
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f)
-        )
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "قواعد چهارگانه جفر (سیر مراتب حروف)",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                JafrRuleType.entries.forEach { rule ->
-                    FilterChip(
-                        selected = selectedRule == rule,
-                        onClick = { selectedRule = rule },
-                        label = { Text(rule.label) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = ruleResult.explanation,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Text(
-                        text = "سطر حاصل (${selectedRule.label}):",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = ruleResult.transformedText.map { it.toString() }.joinToString("  "),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun KulleSirrInfoCard() {
-    var isExpanded by remember { mutableStateOf(false) }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
         )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -973,26 +1026,244 @@ fun KulleSirrInfoCard() {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = "کلیات علوم پنج‌گانه خفیه (کُلّه سِرّ) و نقد خرافات",
-                    style = MaterialTheme.typography.titleSmall,
+                    text = "قواعد چهارگانه جفر (سیر مراتب حروف)",
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f)
                 )
-                TextButton(onClick = { isExpanded = !isExpanded }) {
-                    Text(if (isExpanded) "بستن" else "مشاهده")
-                }
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (isExpanded) "بستن" else "باز کردن"
+                )
             }
 
-            if (isExpanded) {
-                Spacer(modifier = Modifier.height(8.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = AbjadUtils.getKulleSirrOverview(),
-                    style = MaterialTheme.typography.bodySmall,
-                    lineHeight = MaterialTheme.typography.bodySmall.lineHeight * 1.3
-                )
+            AnimatedVisibility(visible = isExpanded) {
+                Column {
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        JafrRuleType.entries.forEach { rule ->
+                            FilterChip(
+                                selected = selectedRule == rule,
+                                onClick = { selectedRule = rule },
+                                label = { Text(rule.label) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = ruleResult.explanation,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = "سطر حاصل (${selectedRule.label}):",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = ruleResult.transformedText.map { it.toString() }.joinToString("  "),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
             }
         }
     }
 }
+
+
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun JafrNumericalCard(result: JafrNumericalResult) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "جفر عددی و وفق ۳x۳ (خزانة الأسرار)",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            val badgeColor = when {
+                result.polarity.contains("سعد") -> SaadBadgeColor
+                result.polarity.contains("نحس") -> NahsBadgeColor
+                else -> NeutralBadgeColor
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(badgeColor.copy(alpha = 0.2f))
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = result.polarity,
+                    color = badgeColor,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "جدول وفق مثلث عددی (بطن المجمع):",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Column(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                result.matrix3x3.forEach { row ->
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        row.forEach { cellVal ->
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .aspectRatio(1.2f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.tertiaryContainer)
+                                    .padding(4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = AbjadUtils.toPersianNumber(cellVal),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                ReportItem("مفتاح (اول)", AbjadUtils.toPersianNumber(result.miftah))
+                ReportItem("مغلاق (آخر)", AbjadUtils.toPersianNumber(result.maghlaq))
+                ReportItem("عدد وفق (ضلع)", AbjadUtils.toPersianNumber(result.wafd))
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp)
+            ) {
+                Text(
+                    text = "اسقاطات چهارگانه طالع وفق:",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    IsqatChip("برج", result.burjName)
+                    IsqatChip("کوکب", result.kawkabName)
+                    IsqatChip("عنصر", result.elementName)
+                    IsqatChip("منزل", result.manzelName)
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f))
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "حکم جفر عددی و وفقی:",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = result.verdict,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = result.explanation,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+fun IsqatChip(label: String, value: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f))
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "$label: ",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+

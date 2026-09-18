@@ -30,17 +30,32 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val settingsManager = SettingsManager(this)
-        val historyManager = HistoryManager()
         
         setContent {
+            val historyManager = remember { HistoryManager { settingsManager.getOrCreateDeviceId() } }
             val selectedFont by settingsManager.selectedFont.collectAsState(initial = "vazirmatn")
             val defaultTypeStr by settingsManager.defaultType.collectAsState(initial = "JAFR_15")
-            val defaultType = remember(defaultTypeStr) {
-                try {
+            val showKabir by settingsManager.showKabir.collectAsState(initial = false)
+            val showSaghir by settingsManager.showSaghir.collectAsState(initial = false)
+            val showWasait by settingsManager.showWasait.collectAsState(initial = false)
+
+            val visibleTypes = remember(showKabir, showSaghir, showWasait) {
+                buildList {
+                    add(AbjadType.JAFR_15)
+                    add(AbjadType.JAFR_NUMERICAL)
+                    if (showKabir) add(AbjadType.KABIR)
+                    if (showSaghir) add(AbjadType.SAGHIR)
+                    if (showWasait) add(AbjadType.WASAIT)
+                }
+            }
+
+            val defaultType = remember(defaultTypeStr, visibleTypes) {
+                val parsed = try {
                     AbjadType.valueOf(defaultTypeStr)
                 } catch (_: Exception) {
                     AbjadType.JAFR_15
                 }
+                if (parsed in visibleTypes) parsed else AbjadType.JAFR_15
             }
 
             val fontFamily = remember(selectedFont) { getFontFamily(selectedFont) }
@@ -55,9 +70,11 @@ class MainActivity : ComponentActivity() {
             val scope = rememberCoroutineScope()
             val updateManager = remember { UpdateManager(this@MainActivity) }
 
-            // Update selectedType when defaultType changes
-            LaunchedEffect(defaultType) {
-                selectedType = defaultType
+            // Update selectedType when defaultType or visibleTypes change
+            LaunchedEffect(defaultType, visibleTypes) {
+                if (selectedType !in visibleTypes) {
+                    selectedType = defaultType
+                }
             }
 
             // Check for updates
@@ -116,6 +133,7 @@ class MainActivity : ComponentActivity() {
                             AppBottomBar(
                                 currentScreen = currentScreen,
                                 selectedType = selectedType,
+                                visibleTypes = visibleTypes,
                                 onScreenSelected = { currentScreen = it }
                             ) { selectedType = it }
                         }

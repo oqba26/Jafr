@@ -12,11 +12,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.oqba26.jafr.AbjadType
 import com.oqba26.jafr.SettingsManager
 import com.oqba26.jafr.util.getFontFamily
 import kotlinx.coroutines.launch
@@ -25,6 +27,9 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(settingsManager: SettingsManager, currentFont: String) {
     val coroutineScope = rememberCoroutineScope()
     val currentDefaultType by settingsManager.defaultType.collectAsState(initial = "JAFR_15")
+    val showKabir by settingsManager.showKabir.collectAsState(initial = false)
+    val showSaghir by settingsManager.showSaghir.collectAsState(initial = false)
+    val showWasait by settingsManager.showWasait.collectAsState(initial = false)
 
     val fonts = listOf(
         "vazirmatn" to "وزیر متن",
@@ -34,12 +39,19 @@ fun SettingsScreen(settingsManager: SettingsManager, currentFont: String) {
         "sahel" to "ساحل",
     )
 
-    val abjadTypes = listOf(
-        com.oqba26.jafr.AbjadType.JAFR_15,
-        com.oqba26.jafr.AbjadType.KABIR,
-        com.oqba26.jafr.AbjadType.SAGHIR,
-        com.oqba26.jafr.AbjadType.WASAIT
+    val toggleableTabs = listOf(
+        AbjadType.KABIR to showKabir,
+        AbjadType.SAGHIR to showSaghir,
+        AbjadType.WASAIT to showWasait
     )
+
+    val visibleToggleableTypes = remember(showKabir, showSaghir, showWasait) {
+        buildList {
+            if (showKabir) add(AbjadType.KABIR)
+            if (showSaghir) add(AbjadType.SAGHIR)
+            if (showWasait) add(AbjadType.WASAIT)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -48,34 +60,80 @@ fun SettingsScreen(settingsManager: SettingsManager, currentFont: String) {
             .verticalScroll(rememberScrollState())
     ) {
         Text(
-            "صفحه اصلی پیش‌فرض:",
+            "نمایش تب‌ها در صفحه اصلی:",
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
-        abjadTypes.forEach { type ->
-            val isSelected = currentDefaultType == type.name
+        toggleableTabs.forEach { (type, isChecked) ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(8.dp))
                     .clickable {
                         coroutineScope.launch {
-                            settingsManager.saveDefaultType(type.name)
+                            when (type) {
+                                AbjadType.KABIR -> settingsManager.saveShowKabir(!isChecked)
+                                AbjadType.SAGHIR -> settingsManager.saveShowSaghir(!isChecked)
+                                AbjadType.WASAIT -> settingsManager.saveShowWasait(!isChecked)
+                                else -> {}
+                            }
                         }
                     }
                     .padding(vertical = 4.dp, horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                RadioButton(
-                    selected = isSelected,
-                    onClick = null
+                Checkbox(
+                    checked = isChecked,
+                    onCheckedChange = null
                 )
                 Text(
                     text = type.label,
                     modifier = Modifier.padding(start = 12.dp),
                     style = MaterialTheme.typography.bodyLarge
                 )
+            }
+        }
+
+        if (visibleToggleableTypes.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(24.dp))
+            HorizontalDivider()
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                "صفحه اصلی پیش‌فرض:",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            visibleToggleableTypes.forEach { type ->
+                val isSelected = currentDefaultType == type.name
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            coroutineScope.launch {
+                                if (isSelected) {
+                                    settingsManager.saveDefaultType("JAFR_15")
+                                } else {
+                                    settingsManager.saveDefaultType(type.name)
+                                }
+                            }
+                        }
+                        .padding(vertical = 4.dp, horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
+                        selected = isSelected,
+                        onClick = null
+                    )
+                    Text(
+                        text = type.label,
+                        modifier = Modifier.padding(start = 12.dp),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
             }
         }
 

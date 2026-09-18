@@ -6,7 +6,8 @@ enum class AbjadType(val label: String) {
     KABIR("کبیر"),
     SAGHIR("صغیر"),
     WASAIT("وسایط"),
-    JAFR_15("جفر ۱۵ سطری")
+    JAFR_15("جفر ۱۵ سطری"),
+    JAFR_NUMERICAL("جفر عددی و وفقی")
 }
 
 enum class NadhiraType(val label: String) {
@@ -206,10 +207,17 @@ object AbjadUtils {
     private const val ABTATH_SEQ = "ابتثجحخدذرژسشصضطظعغفقکلمنوهی"
     private const val AHTAM_SEQ = "اهطمفشذبوینصتضجژکسقثظدحلعرخغ"
 
+    fun stripYaHoo(text: String): String {
+        return text.trim()
+            .replace("^[\\s\u200c\u200b]*(یا[\\s\u200c\u200b]*هو|یاهو)[\\s\u200c\u200b]*".toRegex(RegexOption.IGNORE_CASE), "")
+            .trim()
+    }
+
     fun calculate(text: String, type: AbjadType): AbjadResult {
+        val sanitized = stripYaHoo(text)
         val breakdown = mutableListOf<Pair<Char, Int>>()
         var total = 0
-        for (char in normalizeText(text)) {
+        for (char in normalizeText(sanitized)) {
             val kabirValue = kabirMap[char]
             if (kabirValue != null) {
                 val value = when (type) {
@@ -217,6 +225,7 @@ object AbjadUtils {
                     AbjadType.SAGHIR -> { val v = kabirValue % 12; if (v == 0) 12 else v }
                     AbjadType.WASAIT -> { val v = kabirValue % 9; if (v == 0) 9 else v }
                     AbjadType.JAFR_15 -> kabirValue
+                    AbjadType.JAFR_NUMERICAL -> kabirValue
                 }
                 total += value
                 breakdown.add(char to value)
@@ -271,7 +280,8 @@ object AbjadUtils {
         nadhiraType: NadhiraType = NadhiraType.ABJAD,
         now: PersianDate? = null
     ): Jafr15Result {
-        val cleanText = normalizeText(question).filter { it in kabirMap.keys }.replace(" ", "")
+        val sanitized = stripYaHoo(question)
+        val cleanText = normalizeText(sanitized).filter { it in kabirMap.keys }.replace(" ", "")
         if (cleanText.isEmpty()) return Jafr15Result(emptyList(), "سوال خالی است")
 
         // مستحصله برای هر سه نوع نظیره (برای سنجش همسویی)
@@ -299,7 +309,7 @@ object AbjadUtils {
         rows.add(JafrRow("سطر نهایی: مستحصله (استخراج نطق)", formatLetters(mustahsalah)))
 
         // --- تحلیل نهایی با سیستم تقسیمات جفری ---
-        val taqsimat = buildTaqsimat(question, cleanText, mustahsalah, mustahsalahByType, now, nadhiraType)
+        val taqsimat = buildTaqsimat(sanitized, cleanText, mustahsalah, mustahsalahByType, now, nadhiraType)
 
         return Jafr15Result(rows, formatAnswer(taqsimat), taqsimat)
     }
@@ -1224,7 +1234,8 @@ object AbjadUtils {
     }
 
     fun analyzeTabaye(text: String): TabayeAnalysis {
-        val cleanText = normalizeText(text).filter { it in kabirMap.keys }
+        val sanitized = stripYaHoo(text)
+        val cleanText = normalizeText(sanitized).filter { it in kabirMap.keys }
         if (cleanText.isEmpty()) {
             return TabayeAnalysis(0, 0, 0, 0, 0, 0, 0, 0, 0, Element.FIRE, "متن خالی است")
         }
@@ -1278,7 +1289,8 @@ object AbjadUtils {
     }
 
     fun applyJafrRule(text: String, rule: JafrRuleType): JafrRuleResult {
-        val clean = normalizeText(text).filter { it in kabirMap.keys }
+        val sanitized = stripYaHoo(text)
+        val clean = normalizeText(sanitized).filter { it in kabirMap.keys }
         val ahad = "ابجدهوزحط"
         val asharat = "یکلمنسعفص"
         val miaat = "قرشتثخذضظ"
@@ -1341,16 +1353,27 @@ object AbjadUtils {
     """.trimIndent()
 
     fun extractNames(text: String): Pair<String?, String?> {
-        val keywords = listOf("زاده", "فرزند", "بن", "ابن", "بنت")
-        val cleanText = normalizeText(text).trim()
-            .replace("^آیا\\s+".toRegex(), "")
-            .replace("^ایا\\s+".toRegex(), "")
-            .replace("^یا\\s+هو\\s+".toRegex(), "")
+        val keywords = listOf("زاده", "فرزند", "پسر", "دختر", "بن", "ابن", "بنت")
+        val sanitized = stripYaHoo(text)
+        val cleanText = normalizeText(sanitized).trim()
+            .replace("^[\\s\u200c\u200b]*(آیا|ایا)[\\s\u200c\u200b]+".toRegex(), "")
         val words = cleanText.split("\\s+".toRegex())
         for (keyword in keywords) {
             val index = words.indexOf(keyword)
             if (index > 0 && index < words.size - 1) {
-                return Pair(words[index - 1], words[index + 1])
+                var first = words[index - 1].trim()
+                val second = words[index + 1].trim()
+
+                // اگر «آیا» یا «ایا» چسبیده به اسم اول باشد (مثل ایاسمانه، ایاعلی، آیامهدی)
+                if (first.length > 3) {
+                    if (first.startsWith("آیا")) {
+                        first = first.removePrefix("آیا").trimStart()
+                    } else if (first.startsWith("ایا")) {
+                        first = first.removePrefix("ایا").trimStart()
+                    }
+                }
+
+                return Pair(first.ifEmpty { null }, second.ifEmpty { null })
             }
         }
         return Pair(null, null)

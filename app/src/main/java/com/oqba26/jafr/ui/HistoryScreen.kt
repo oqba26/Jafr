@@ -26,6 +26,7 @@ import com.oqba26.jafr.AbjadType
 import com.oqba26.jafr.AbjadUtils
 import com.oqba26.jafr.HistoryManager
 import com.oqba26.jafr.NadhiraType
+import com.oqba26.jafr.util.JafrNumericalUtils
 import kotlinx.coroutines.launch
 import com.oqba26.jafr.model.HistoryItem
 import saman.zamani.persiandate.PersianDate
@@ -44,19 +45,24 @@ fun HistoryScreen(
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
 
-    // فیلتر کردن لیست برای نمایش فقط موارد جفر ۱۵ سطری که نام و نام مادر دارند
-    val filteredHistory = remember(history) {
-        history.filter { 
-            it.firstName != null && 
-            it.motherName != null && 
-            it.type == AbjadType.JAFR_15 
-        }
-    }
-
     // گروه‌بندی بر اساس نام شخص و سپس تاریخ
-    val groupedHistory = remember(filteredHistory) {
-        filteredHistory.groupBy { item ->
-            "${item.firstName} زاده ${item.motherName}"
+    val groupedHistory = remember(history) {
+        history.groupBy { item ->
+            var fName = item.firstName?.trim()
+            if (fName != null && fName.length > 3) {
+                if (fName.startsWith("آیا")) {
+                    fName = fName.removePrefix("آیا").trimStart()
+                } else if (fName.startsWith("ایا")) {
+                    fName = fName.removePrefix("ایا").trimStart()
+                }
+            }
+            if (!fName.isNullOrBlank() && !item.motherName.isNullOrBlank()) {
+                "${fName} زاده ${item.motherName.trim()}"
+            } else if (!fName.isNullOrBlank()) {
+                fName
+            } else {
+                "سوالات عمومی / بدون مشخصات"
+            }
         }.mapValues { entry ->
             entry.value.groupBy { it.timestamp.split(" ")[0] }
         }
@@ -86,7 +92,7 @@ fun HistoryScreen(
                 translationY = offsetY
             )
     ) {
-        if (filteredHistory.isNotEmpty()) {
+        if (history.isNotEmpty()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.End,
@@ -98,7 +104,7 @@ fun HistoryScreen(
             }
         }
 
-        if (filteredHistory.isEmpty()) {
+        if (history.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("تاریخچه هنوز خالی است", color = Color.Gray)
             }
@@ -243,10 +249,7 @@ fun HistoryItemFullCard(
     onItemClick: (String) -> Unit,
     onDeleteItem: (HistoryItem) -> Unit
 ) {
-    val jafrResult = remember(item.text) {
-        AbjadUtils.calculateJafr15(item.text, NadhiraType.ABJAD, PersianDate())
-    }
-
+    val cleanText = remember(item.text) { AbjadUtils.stripYaHoo(item.text) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -263,7 +266,7 @@ fun HistoryItemFullCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = item.text,
+                        text = cleanText,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -275,7 +278,7 @@ fun HistoryItemFullCard(
                     )
                 }
                 Row {
-                    IconButton(onClick = { onItemClick(item.text) }) {
+                    IconButton(onClick = { onItemClick(cleanText) }) {
                         Icon(Icons.Default.Edit, contentDescription = "ویرایش/محاسبه مجدد", tint = MaterialTheme.colorScheme.primary)
                     }
                     IconButton(onClick = { onDeleteItem(item) }) {
@@ -288,23 +291,44 @@ fun HistoryItemFullCard(
             HorizontalDivider()
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Full 15-line Jafar Cards
-            JafrAnswerCard(jafrResult)
-            
-            val taqsimat = jafrResult.taqsimat
-            if (taqsimat?.spell != null) {
+            if (item.type == AbjadType.JAFR_NUMERICAL) {
+                val numericalResult = remember(cleanText) {
+                    JafrNumericalUtils.calculateNumericalJafr(cleanText)
+                }
+                JafrNumericalCard(numericalResult)
+                val tabaye = remember(cleanText) { AbjadUtils.analyzeTabaye(cleanText) }
                 Spacer(modifier = Modifier.height(12.dp))
-                SpellCard(taqsimat.spell, taqsimat.direction)
-            }
-            
-            taqsimat?.topics?.forEach { topic ->
+                TabayeCard(tabaye)
+            } else {
+                val jafrResult = remember(cleanText) {
+                    AbjadUtils.calculateJafr15(cleanText, NadhiraType.ABJAD, PersianDate())
+                }
+
+                JafrAnswerCard(jafrResult)
+                
+                val taqsimat = jafrResult.taqsimat
+                if (taqsimat?.spell != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    SpellCard(taqsimat.spell, taqsimat.direction)
+                }
+                
+                taqsimat?.topics?.forEach { topic ->
+                    Spacer(modifier = Modifier.height(12.dp))
+                    TopicCard(topic)
+                }
+
+                taqsimat?.tabaye?.let { tb ->
+                    Spacer(modifier = Modifier.height(12.dp))
+                    TabayeCard(tb)
+                }
+
                 Spacer(modifier = Modifier.height(12.dp))
-                TopicCard(topic)
-            }
-            
-            jafrResult.rows.forEach { row ->
-                Spacer(modifier = Modifier.height(8.dp))
-                JafrRowCard(row)
+                JafrRulesCard(cleanText)
+
+                jafrResult.rows.forEach { row ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    JafrRowCard(row)
+                }
             }
         }
     }

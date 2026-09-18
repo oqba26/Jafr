@@ -1,12 +1,15 @@
 package com.oqba26.jafr.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -23,6 +26,7 @@ import com.oqba26.jafr.model.Screen
 fun AppBottomBar(
     currentScreen: Screen,
     selectedType: AbjadType,
+    visibleTypes: List<AbjadType>,
     onScreenSelected: (Screen) -> Unit,
     onTypeSelected: (AbjadType) -> Unit
 ) {
@@ -31,12 +35,13 @@ fun AppBottomBar(
             containerColor = MaterialTheme.colorScheme.primaryContainer,
             tonalElevation = 8.dp
         ) {
-            AbjadType.entries.forEach { type ->
+            visibleTypes.forEach { type ->
                 val icon = when (type) {
+                    AbjadType.JAFR_15 -> Icons.Default.ViewComfy
+                    AbjadType.JAFR_NUMERICAL -> Icons.Default.GridOn
                     AbjadType.KABIR -> Icons.Default.Calculate
                     AbjadType.SAGHIR -> Icons.Default.KeyboardDoubleArrowDown
                     AbjadType.WASAIT -> Icons.Default.FilterCenterFocus
-                    AbjadType.JAFR_15 -> Icons.Default.ViewComfy
                 }
                 NavigationBarItem(
                     selected = currentScreen == Screen.CALCULATOR && selectedType == type,
@@ -68,53 +73,75 @@ fun AppBottomBar(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun JafrRowCard(row: JafrRow) {
+fun JafrRowCard(
+    row: JafrRow,
+    initialExpanded: Boolean = false
+) {
+    var isExpanded by remember { mutableStateOf(initialExpanded) }
     val isFinal = row.title.contains("نهایی") || row.title.contains("مستحصله")
     val letters = row.letters.split("  ").filter { it.isNotBlank() }
     
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { isExpanded = !isExpanded },
         elevation = CardDefaults.cardElevation(defaultElevation = if (isFinal) 6.dp else 2.dp),
         colors = if (isFinal) CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.secondaryContainer
         ) else CardDefaults.cardColors(),
-        border = if (isFinal) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+        border = if (isFinal) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = row.title,
-                style = MaterialTheme.typography.labelMedium,
-                color = if (isFinal) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Right,
-                fontWeight = if (isFinal) FontWeight.ExtraBold else FontWeight.Normal
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                letters.forEach { letter ->
-                    Box(
-                        modifier = Modifier
-                            .padding(2.dp)
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(
-                                if (isFinal) MaterialTheme.colorScheme.primary 
-                                else MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                        contentAlignment = Alignment.Center
+                Text(
+                    text = row.title,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (isFinal) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+                    fontWeight = if (isFinal) FontWeight.ExtraBold else FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Right
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (isExpanded) "بستن" else "باز کردن",
+                    tint = if (isFinal) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                )
+            }
+
+            AnimatedVisibility(visible = isExpanded) {
+                Column {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text(
-                            text = letter,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isFinal) MaterialTheme.colorScheme.onPrimary 
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        letters.forEach { letter ->
+                            Box(
+                                modifier = Modifier
+                                    .padding(2.dp)
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(
+                                        if (isFinal) MaterialTheme.colorScheme.primary 
+                                        else MaterialTheme.colorScheme.surfaceVariant
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = letter,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isFinal) MaterialTheme.colorScheme.onPrimary 
+                                            else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
                 }
             }

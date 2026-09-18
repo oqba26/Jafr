@@ -25,10 +25,34 @@ data class HistoryDto(
     val result: Int,
     val answer: String? = null,
     val type: String,
+    val timestamp: String,
+    @SerialName("device_id") val deviceId: String? = null
+)
+
+@Serializable
+data class HistoryInsertDto(
+    val text: String,
+    @SerialName("first_name") val firstName: String? = null,
+    @SerialName("mother_name") val motherName: String? = null,
+    val result: Int,
+    val answer: String? = null,
+    val type: String,
+    val timestamp: String,
+    @SerialName("device_id") val deviceId: String? = null
+)
+
+@Serializable
+data class HistoryInsertFallbackDto(
+    val text: String,
+    @SerialName("first_name") val firstName: String? = null,
+    @SerialName("mother_name") val motherName: String? = null,
+    val result: Int,
+    val answer: String? = null,
+    val type: String,
     val timestamp: String
 )
 
-class HistoryManager {
+class HistoryManager(private val getDeviceId: (suspend () -> String)? = null) {
     private val supabase = createSupabaseClient(
         supabaseUrl = BuildConfig.SUPABASE_URL,
         supabaseKey = BuildConfig.SUPABASE_KEY
@@ -49,11 +73,37 @@ class HistoryManager {
     suspend fun refreshHistory() {
         withContext(Dispatchers.IO) {
             try {
-                val dtos = supabase.from("jafr_history")
-                    .select {
-                        order("id", Order.DESCENDING)
+                val devId = getDeviceId?.invoke() ?: ""
+                val dtos = if (devId.isNotEmpty()) {
+                    try {
+                        val filtered = supabase.from("jafr_history")
+                            .select {
+                                filter { eq("device_id", devId) }
+                                order("id", Order.DESCENDING)
+                            }
+                            .decodeList<HistoryDto>()
+
+                        filtered.ifEmpty {
+                            supabase.from("jafr_history")
+                                .select {
+                                    order("id", Order.DESCENDING)
+                                }
+                                .decodeList<HistoryDto>()
+                        }
+                    } catch (_: Exception) {
+                        supabase.from("jafr_history")
+                            .select {
+                                order("id", Order.DESCENDING)
+                            }
+                            .decodeList<HistoryDto>()
                     }
-                    .decodeList<HistoryDto>()
+                } else {
+                    supabase.from("jafr_history")
+                        .select {
+                            order("id", Order.DESCENDING)
+                        }
+                        .decodeList<HistoryDto>()
+                }
 
                 val items = dtos.map { dto ->
                     HistoryItem(
@@ -78,16 +128,51 @@ class HistoryManager {
         withContext(Dispatchers.IO) {
             try {
                 val current = _historyList.value
-                val isDuplicate = current.take(10).any {
-                    it.text.trim() == item.text.trim() &&
+                val cleanItemText = AbjadUtils.stripYaHoo(item.text)
+
+                // Check for exact duplicate
+                val exactDuplicate = current.take(10).any {
+                    AbjadUtils.stripYaHoo(it.text) == cleanItemText &&
                     it.answer == item.answer &&
                     it.type == item.type
                 }
 
-                if (!isDuplicate) {
-                    val dto = HistoryDto(
-                        id = item.id,
-                        text = item.text,
+                if (exactDuplicate) return@withContext
+
+                // Delete previous incomplete/partial edits of the same question
+                val previousIncompleteMatch = current.take(15).firstOrNull { existing ->
+                    existing.type == item.type &&
+                    ((existing.firstName != null && item.firstName != null &&
+                      existing.firstName == item.firstName && existing.motherName == item.motherName) ||
+                     existing.text.trim() == cleanItemText) &&
+                    (cleanItemText.startsWith(existing.text.trim().removeSuffix("؟").removeSuffix("?").trim()) ||
+                     existing.text.trim().startsWith(cleanItemText.removeSuffix("؟").removeSuffix("?").trim()))
+                }
+
+                if (previousIncompleteMatch != null) {
+                    try {
+                        supabase.from("jafr_history").delete {
+                            filter { eq("id", previousIncompleteMatch.id) }
+                        }
+                    } catch (_: Exception) {}
+                }
+
+                val devId = getDeviceId?.invoke() ?: ""
+                try {
+                    val dto = HistoryInsertDto(
+                        text = cleanItemText,
+                        firstName = item.firstName,
+                        motherName = item.motherName,
+                        result = item.result,
+                        answer = item.answer,
+                        type = item.type.name,
+                        timestamp = item.timestamp,
+                        deviceId = devId.ifEmpty { null }
+                    )
+                    supabase.from("jafr_history").insert(dto)
+                } catch (_: Exception) {
+                    val fallbackDto = HistoryInsertFallbackDto(
+                        text = cleanItemText,
                         firstName = item.firstName,
                         motherName = item.motherName,
                         result = item.result,
@@ -95,9 +180,9 @@ class HistoryManager {
                         type = item.type.name,
                         timestamp = item.timestamp
                     )
-                    supabase.from("jafr_history").insert(dto)
-                    refreshHistory()
+                    supabase.from("jafr_history").insert(fallbackDto)
                 }
+                refreshHistory()
             } catch (e: Exception) {
                 e.printStackTrace()
             }
