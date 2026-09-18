@@ -81,7 +81,7 @@ fun AbjadCalculatorScreen(
 
     val cleanUserText = remember(tfValue.text) { AbjadUtils.stripYaHoo(tfValue.text) }
 
-    val names = remember(cleanUserText) { AbjadUtils.extractNames(cleanUserText) }
+    val names: Pair<String?, String?>
     val isQuestionComplete = remember(cleanUserText) {
         val trimmed = cleanUserText.trim()
         (trimmed.endsWith("؟") || trimmed.endsWith("?")) && (trimmed.length > 10)
@@ -114,33 +114,29 @@ fun AbjadCalculatorScreen(
 
                 // 1. محاسبه و ذخیره جفر ۱۵ سطری
                 val j15Res = AbjadUtils.calculateJafr15(trimmedText, selectedNadhira, pDate)
-                if (j15Res != null) {
-                    val item15 = HistoryItem(
-                        text = trimmedText,
-                        firstName = names.first,
-                        motherName = names.second,
-                        result = 0,
-                        answer = j15Res.answer,
-                        type = AbjadType.JAFR_15,
-                        timestamp = timestamp
-                    )
-                    historyManager.addHistoryItem(item15)
-                }
+                val item15 = HistoryItem(
+                    text = trimmedText,
+                    firstName = names.first,
+                    motherName = names.second,
+                    result = 0,
+                    answer = j15Res.answer,
+                    type = AbjadType.JAFR_15,
+                    timestamp = timestamp,
+                )
+                historyManager.addHistoryItem(item15)
 
                 // 2. محاسبه و ذخیره جفر عددی و وفقی
                 val jNumRes = JafrNumericalUtils.calculateNumericalJafr(trimmedText)
-                if (jNumRes != null) {
-                    val itemNum = HistoryItem(
-                        text = trimmedText,
-                        firstName = names.first,
-                        motherName = names.second,
-                        result = jNumRes.wafd,
-                        answer = jNumRes.verdict,
-                        type = AbjadType.JAFR_NUMERICAL,
-                        timestamp = timestamp
-                    )
-                    historyManager.addHistoryItem(itemNum)
-                }
+                val itemNum = HistoryItem(
+                    text = trimmedText,
+                    firstName = names.first,
+                    motherName = names.second,
+                    result = jNumRes.wafd,
+                    answer = jNumRes.verdict,
+                    type = AbjadType.JAFR_NUMERICAL,
+                    timestamp = timestamp,
+                )
+                historyManager.addHistoryItem(itemNum)
 
                 lastSavedText = trimmedText
             }

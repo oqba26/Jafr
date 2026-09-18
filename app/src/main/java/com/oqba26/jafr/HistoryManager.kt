@@ -30,7 +30,7 @@ data class HistoryDto(
     val answer: String? = null,
     val type: String,
     val timestamp: String,
-    @SerialName("device_id") val deviceId: String? = null
+    @SerialName("device_id") val deviceId: String? = null,
 )
 
 @Serializable
@@ -42,12 +42,12 @@ data class HistoryInsertDto(
     val answer: String? = null,
     val type: String,
     val timestamp: String,
-    @SerialName("device_id") val deviceId: String
+    @SerialName("device_id") val deviceId: String,
 )
 
 class HistoryManager(
     private val historyDao: HistoryDao,
-    private val getDeviceId: () -> String
+    private val getDeviceId: () -> String,
 ) {
     private val supabase = createSupabaseClient(
         supabaseUrl = BuildConfig.SUPABASE_URL,
@@ -66,7 +66,7 @@ class HistoryManager(
             historyDao.getAllHistory().collectLatest { entities ->
                 val devId = getDeviceId()
                 val localItems = entities
-                    .filter { it.deviceId == null || devId.isEmpty() || it.deviceId == devId }
+                    .filter { (it.deviceId == null) || devId.isEmpty() || (it.deviceId == devId) }
                     .map { entity ->
                         HistoryItem(
                             id = entity.id,
@@ -167,8 +167,8 @@ class HistoryManager(
                                     existing.text.trim().startsWith(cleanItemText.removeSuffix("؟").removeSuffix("?").trim()))
                 }
 
-                if (previousIncompleteMatch != null) {
-                    deleteHistoryItem(previousIncompleteMatch.id)
+                previousIncompleteMatch?.let {
+                    deleteHistoryItem(it.id)
                 }
 
                 // 1. SAVE TO ROOM DATABASE FIRST (Local-First)

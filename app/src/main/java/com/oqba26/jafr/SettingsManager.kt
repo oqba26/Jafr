@@ -1,5 +1,6 @@
 package com.oqba26.jafr
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.provider.Settings
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -41,6 +42,7 @@ class SettingsManager(private val context: Context) {
         preferences[SHOW_WASAIT_KEY] ?: false
     }
 
+    @SuppressLint("HardwareIds")
     fun getDeviceId(): String {
         val androidId = try {
             Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
@@ -48,7 +50,7 @@ class SettingsManager(private val context: Context) {
             null
         }
 
-        if (!androidId.isNullOrBlank() && androidId != "9774d56d682e549c") {
+        if (!androidId.isNullOrBlank() && (androidId != "9774d56d682e549c")) {
             return androidId
         }
 
