@@ -15,6 +15,7 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
+import android.content.pm.PackageManager
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
@@ -155,7 +156,20 @@ class UpdateManager(private val context: Context) {
                         val status = cursor.getInt(statusIndex)
                         if (status == DownloadManager.STATUS_SUCCESSFUL) {
                             CoroutineScope(Dispatchers.Main).launch {
-                                delay(800.milliseconds)
+                                // اطمینان از اتمام کامل نوشتن فایل روی حافظه
+                                val targetFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
+                                var attempts = 0
+                                var lastSize = -1L
+                                while (attempts < 15) {
+                                    delay(400.milliseconds)
+                                    val currentSize = if (targetFile.exists()) targetFile.length() else -1L
+                                    if (currentSize > 0L && currentSize == lastSize) {
+                                        break
+                                    }
+                                    lastSize = currentSize
+                                    attempts++
+                                }
+                                delay(300.milliseconds)
                                 installApk(fileName)
                             }
                         } else {
@@ -249,6 +263,26 @@ class UpdateManager(private val context: Context) {
                 setDataAndType(contentUri, "application/vnd.android.package-archive")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+
+            // اعطای صریح دسترسی خواندن URI به پکیج‌های نصاب سیستم جهت جلوگیری از خطای دسترسی
+            val resolvedActivities = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.queryIntentActivities(
+                    intent,
+                    PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong())
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+            }
+
+            for (resolveInfo in resolvedActivities) {
+                val targetPackage = resolveInfo.activityInfo.packageName
+                context.grantUriPermission(
+                    targetPackage,
+                    contentUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
             }
 
             context.startActivity(intent)
