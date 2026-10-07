@@ -22,7 +22,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.oqba26.jafr.AbjadType
 import com.oqba26.jafr.AbjadUtils
 import com.oqba26.jafr.HistoryManager
 import com.oqba26.jafr.NadhiraType
@@ -57,7 +56,7 @@ fun HistoryScreen(
                 }
             }
             if (!fName.isNullOrBlank() && !item.motherName.isNullOrBlank()) {
-                "${fName} زاده ${item.motherName.trim()}"
+                "$fName زاده ${item.motherName.trim()}"
             } else if (!fName.isNullOrBlank()) {
                 fName
             } else {
@@ -291,44 +290,40 @@ fun HistoryItemFullCard(
             HorizontalDivider()
             Spacer(modifier = Modifier.height(12.dp))
 
-            if (item.type == AbjadType.JAFR_NUMERICAL) {
-                val numericalResult = remember(cleanText) {
-                    JafrNumericalUtils.calculateNumericalJafr(cleanText)
-                }
-                JafrNumericalCard(numericalResult)
-                val tabaye = remember(cleanText) { AbjadUtils.analyzeTabaye(cleanText) }
+            val jafrResult = remember(cleanText) {
+                AbjadUtils.calculateJafr15(cleanText, NadhiraType.ABJAD, PersianDate())
+            }
+            val numericalResult = remember(cleanText) {
+                JafrNumericalUtils.calculateNumericalJafr(cleanText)
+            }
+
+            JafrAnswerCard(jafrResult)
+
+            Spacer(modifier = Modifier.height(12.dp))
+            JafrNumericalCard(numericalResult)
+
+            val taqsimat = jafrResult.taqsimat
+            if (taqsimat?.spell != null) {
                 Spacer(modifier = Modifier.height(12.dp))
-                TabayeCard(tabaye)
-            } else {
-                val jafrResult = remember(cleanText) {
-                    AbjadUtils.calculateJafr15(cleanText, NadhiraType.ABJAD, PersianDate())
-                }
+                SpellCard(taqsimat.spell, taqsimat.direction)
+            }
 
-                JafrAnswerCard(jafrResult)
-                
-                val taqsimat = jafrResult.taqsimat
-                if (taqsimat?.spell != null) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    SpellCard(taqsimat.spell, taqsimat.direction)
-                }
-                
-                taqsimat?.topics?.forEach { topic ->
-                    Spacer(modifier = Modifier.height(12.dp))
-                    TopicCard(topic)
-                }
-
-                taqsimat?.tabaye?.let { tb ->
-                    Spacer(modifier = Modifier.height(12.dp))
-                    TabayeCard(tb)
-                }
-
+            taqsimat?.topics?.forEach { topic ->
                 Spacer(modifier = Modifier.height(12.dp))
-                JafrRulesCard(cleanText)
+                TopicCard(topic)
+            }
 
-                jafrResult.rows.forEach { row ->
-                    Spacer(modifier = Modifier.height(8.dp))
-                    JafrRowCard(row)
-                }
+            taqsimat?.tabaye?.let { tb ->
+                Spacer(modifier = Modifier.height(12.dp))
+                TabayeCard(tb)
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            JafrRulesCard(cleanText)
+
+            jafrResult.rows.forEach { row ->
+                Spacer(modifier = Modifier.height(8.dp))
+                JafrRowCard(row)
             }
         }
     }

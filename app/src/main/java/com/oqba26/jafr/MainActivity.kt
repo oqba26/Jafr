@@ -49,7 +49,6 @@ class MainActivity : ComponentActivity() {
             val visibleTypes = remember(showKabir, showSaghir, showWasait) {
                 buildList {
                     add(AbjadType.JAFR_15)
-                    add(AbjadType.JAFR_NUMERICAL)
                     if (showKabir) add(AbjadType.KABIR)
                     if (showSaghir) add(AbjadType.SAGHIR)
                     if (showWasait) add(AbjadType.WASAIT)

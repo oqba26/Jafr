@@ -68,6 +68,12 @@ class HistoryManager(
                 val localItems = entities
                     .filter { (it.deviceId == null) || devId.isEmpty() || (it.deviceId == devId) }
                     .map { entity ->
+                        val parsedType = try {
+                            AbjadType.valueOf(entity.type)
+                        } catch (_: Exception) {
+                            AbjadType.JAFR_15
+                        }
+                        val finalType = if (parsedType == AbjadType.JAFR_NUMERICAL) AbjadType.JAFR_15 else parsedType
                         HistoryItem(
                             id = entity.id,
                             text = entity.text,
@@ -75,13 +81,13 @@ class HistoryManager(
                             motherName = entity.motherName,
                             result = entity.result,
                             answer = entity.answer,
-                            type = try {
-                                AbjadType.valueOf(entity.type)
-                            } catch (_: Exception) {
-                                AbjadType.JAFR_15
-                            },
+                            type = finalType,
                             timestamp = entity.timestamp
                         )
+                    }
+                    .distinctBy { item ->
+                        val cleanText = AbjadUtils.stripYaHoo(item.text).trim()
+                        "${cleanText}_${item.timestamp}"
                     }
                 _historyList.value = localItems
             }
@@ -214,6 +220,12 @@ class HistoryManager(
 
                 // Delete locally from Room
                 historyDao.deleteItem(id)
+
+                // Delete any matching duplicate entry by text & timestamp locally
+                if (item != null) {
+                    val cleanText = AbjadUtils.stripYaHoo(item.text).trim()
+                    historyDao.deleteByTextAndTimestamp(cleanText, item.timestamp)
+                }
 
                 // Delete remotely from Supabase strictly filtering by device_id
                 if (item != null && devId.isNotEmpty()) {

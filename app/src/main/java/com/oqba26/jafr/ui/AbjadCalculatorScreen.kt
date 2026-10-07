@@ -20,6 +20,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
@@ -44,7 +47,16 @@ import saman.zamani.persiandate.PersianDateFormat
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+private fun formatWithPrefix(text: String, prefix: String = "یا هو "): String {
+    return when {
+        text.isEmpty() -> prefix
+        text.startsWith(prefix) -> text
+        text.startsWith("یا هو") -> prefix + text.removePrefix("یا هو").trimStart()
+        else -> prefix + text.trimStart()
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AbjadCalculatorScreen(
     selectedType: AbjadType,
@@ -54,13 +66,11 @@ fun AbjadCalculatorScreen(
     onTextChange: (String) -> Unit = {},
 ) {
     val prefix = "یا هو "
-    var tfValue by remember(initialText) {
-        val initialCombined = when {
-            initialText.isEmpty() -> prefix
-            initialText.startsWith(prefix) -> initialText
-            initialText.startsWith("یا هو") -> prefix + initialText.removePrefix("یا هو").trimStart()
-            else -> prefix + initialText.trimStart()
-        }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusRequester = remember { FocusRequester() }
+
+    var tfValue by remember {
+        val initialCombined = formatWithPrefix(initialText, prefix)
         mutableStateOf(
             TextFieldValue(
                 text = initialCombined,
@@ -68,6 +78,26 @@ fun AbjadCalculatorScreen(
             )
         )
     }
+
+    // همگام‌سازی با تغییرات initialText از بیرون (مثلاً کلیک روی تاریخچه)
+    LaunchedEffect(initialText) {
+        val formatted = formatWithPrefix(initialText, prefix)
+        if (formatted != tfValue.text) {
+            tfValue = TextFieldValue(
+                text = formatted,
+                selection = TextRange(formatted.length)
+            )
+        }
+    }
+
+    // نمایش خودکار کیبورد هنگام انتخاب/هایلایت متن
+    LaunchedEffect(tfValue.selection) {
+        if (!tfValue.selection.collapsed) {
+            focusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
+
     var selectedNadhira by remember { mutableStateOf(NadhiraType.ABJAD) }
     
     var scale by remember { mutableFloatStateOf(1f) }
@@ -94,12 +124,12 @@ fun AbjadCalculatorScreen(
         else null 
     }
     val jafrNumericalResult = remember(cleanUserText, selectedType, isQuestionComplete) {
-        if (selectedType == AbjadType.JAFR_NUMERICAL && isQuestionComplete && cleanUserText.isNotEmpty())
+        if ((selectedType == AbjadType.JAFR_15 || selectedType == AbjadType.JAFR_NUMERICAL) && isQuestionComplete && cleanUserText.isNotEmpty())
             JafrNumericalUtils.calculateNumericalJafr(cleanUserText)
         else null
     }
 
-    // ذخیره‌سازی همزمان جفر ۱۵ سطری و جفر عددی/وفقی برای هر سوال کامل
+    // ذخیره‌سازی جفر ادغام شده (۱۵ سطری و عددی/وفقی) برای هر سوال کامل
     var lastSavedText by remember { mutableStateOf("") }
 
     LaunchedEffect(cleanUserText, isQuestionComplete) {
@@ -112,7 +142,7 @@ fun AbjadCalculatorScreen(
                 val formatter = PersianDateFormat("Y/m/d H:i:s")
                 val timestamp = formatter.format(pDate)
 
-                // 1. محاسبه و ذخیره جفر ۱۵ سطری
+                // محاسبه و ذخیره جفر ادغام شده
                 val j15Res = AbjadUtils.calculateJafr15(trimmedText, selectedNadhira, pDate)
                 val item15 = HistoryItem(
                     text = trimmedText,
@@ -124,19 +154,6 @@ fun AbjadCalculatorScreen(
                     timestamp = timestamp,
                 )
                 historyManager.addHistoryItem(item15)
-
-                // 2. محاسبه و ذخیره جفر عددی و وفقی
-                val jNumRes = JafrNumericalUtils.calculateNumericalJafr(trimmedText)
-                val itemNum = HistoryItem(
-                    text = trimmedText,
-                    firstName = names.first,
-                    motherName = names.second,
-                    result = jNumRes.wafd,
-                    answer = jNumRes.verdict,
-                    type = AbjadType.JAFR_NUMERICAL,
-                    timestamp = timestamp,
-                )
-                historyManager.addHistoryItem(itemNum)
 
                 lastSavedText = trimmedText
             }
@@ -190,16 +207,30 @@ fun AbjadCalculatorScreen(
             value = tfValue,
             onValueChange = { newValue ->
                 var newText = newValue.text
+                var selStart = newValue.selection.start
+                var selEnd = newValue.selection.end
+
                 if (!newText.startsWith("یا هو")) {
                     val userPortion = newText.removePrefix("یا").removePrefix("هو").trimStart()
                     newText = prefix + userPortion
+                    if (newValue.text.length < newText.length) {
+                        val diff = newText.length - newValue.text.length
+                        selStart += diff
+                        selEnd += diff
+                    }
+                } else if (!newText.startsWith(prefix)) {
+                    val userPortion = newText.removePrefix("یا هو").trimStart()
+                    newText = prefix + userPortion
+                    val diff = prefix.length - "یا هو".length
+                    selStart += diff
+                    selEnd += diff
                 } else if (newText.length < prefix.length) {
                     newText = prefix
                 }
 
                 val minSelection = prefix.length
-                val newSelStart = maxOf(minSelection, newValue.selection.start)
-                val newSelEnd = maxOf(minSelection, newValue.selection.end)
+                val newSelStart = maxOf(minSelection, selStart).coerceAtMost(newText.length)
+                val newSelEnd = maxOf(minSelection, selEnd).coerceAtMost(newText.length)
 
                 tfValue = newValue.copy(
                     text = newText,
@@ -207,7 +238,9 @@ fun AbjadCalculatorScreen(
                 )
             },
             label = { Text("متن یا نام را وارد کنید") },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester),
             textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Right),
             visualTransformation = PersianNumberVisualTransformation(),
             placeholder = { Text("مثلاً: آیا علی زاده زهرا طلسم شده است؟", color = Color.Gray.copy(alpha = 0.5f)) }
@@ -223,6 +256,11 @@ fun AbjadCalculatorScreen(
                 ) {
                     item {
                         JafrAnswerCard(jafrResult)
+                    }
+                    if (jafrNumericalResult != null) {
+                        item {
+                            JafrNumericalCard(jafrNumericalResult)
+                        }
                     }
                     val taqsimat = jafrResult.taqsimat
                     if (taqsimat?.spell != null) {

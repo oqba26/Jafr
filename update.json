@@ -1,7 +1,7 @@
 {
-  "versionCode": 9,
-  "versionName": "v1.2.5",
-  "url": "https://github.com/oqba26/Jafr/releases/download/v1.2.5/Jafr-v1.2.5.apk",
-  "releaseNotes": "نسخه جدید برنامه منتشر شد",
+  "versionCode": 10,
+  "versionName": "v1.2.6",
+  "url": "https://github.com/oqba26/Jafr/releases/download/v1.2.6/Jafr-v1.2.6.apk",
+  "releaseNotes": "به‌روزرسانی کیبورد و رفع مشکل پریدن کرسر هنگام ویرایش متن",
   "isForceUpdate": false
 }

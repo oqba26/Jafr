@@ -23,6 +23,9 @@ interface HistoryDao {
     @Query("DELETE FROM history WHERE id = :id")
     suspend fun deleteItem(id: Long)
 
+    @Query("DELETE FROM history WHERE (text = :text OR text = 'یا هو ' || :text) AND timestamp = :timestamp")
+    suspend fun deleteByTextAndTimestamp(text: String, timestamp: String)
+
     @Query("DELETE FROM history")
     suspend fun clearHistory()
 }
