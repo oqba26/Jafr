@@ -1,7 +1,7 @@
 {
   "versionCode": 11,
   "versionName": "v1.2.7",
-  "url": "https://git.mizbanplatform.ir/oqba26/Jafr/releases/download/v1.2.7/Jafr-v1.2.7.apk",
-  "releaseNotes": "بهینه‌سازی معماری و عملکرد، اصلاح پایگاه داده، و انتقال سرور آپدیت به گیت‌تی",
+  "url": "https://github.com/oqba26/Jafr/releases/download/v1.2.7/Jafr-v1.2.7.apk",
+  "releaseNotes": "نسخه جدید برنامه منتشر شد",
   "isForceUpdate": false
 }
