@@ -20,6 +20,55 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
+      - name: Set up Android SDK
+        run: |
+          set -e
+          echo "=== Setting up Android SDK ==="
+
+          # 1. Install unzip & curl if missing
+          if ! command -v unzip >/dev/null 2>&1; then
+            echo "Installing unzip and curl..."
+            apt-get update -y && apt-get install -y unzip curl || true
+          fi
+
+          # 2. Determine ANDROID_HOME location
+          SDK_DIR="${ANDROID_HOME:-}"
+          if [ -z "$SDK_DIR" ] || [ ! -d "$SDK_DIR" ] || [ ! -w "$SDK_DIR" ]; then
+            SDK_DIR="$HOME/android-sdk"
+          fi
+          mkdir -p "$SDK_DIR"
+
+          export ANDROID_HOME="$SDK_DIR"
+          export ANDROID_SDK_ROOT="$SDK_DIR"
+          echo "ANDROID_HOME=$SDK_DIR" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$SDK_DIR" >> $GITHUB_ENV
+          echo "sdk.dir=$SDK_DIR" > local.properties
+
+          # 3. Setup cmdline-tools
+          CMDLINE_BIN="$SDK_DIR/cmdline-tools/latest/bin"
+          if [ ! -f "$CMDLINE_BIN/sdkmanager" ]; then
+            echo "Downloading Android Command Line Tools..."
+            mkdir -p "$SDK_DIR/cmdline-tools"
+            curl -sSLo /tmp/cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+            unzip -q -o /tmp/cmdline-tools.zip -d "$SDK_DIR/cmdline-tools"
+            rm -f /tmp/cmdline-tools.zip
+            rm -rf "$SDK_DIR/cmdline-tools/latest"
+            mv "$SDK_DIR/cmdline-tools/cmdline-tools" "$SDK_DIR/cmdline-tools/latest"
+          fi
+
+          echo "$CMDLINE_BIN:$SDK_DIR/platform-tools" >> $GITHUB_PATH
+
+          # 4. Pre-accept licenses
+          mkdir -p "$SDK_DIR/licenses"
+          printf "24333f8a63b6825ea9c5514f83c2829b004d1fee\nd56f5187479451eabf01fb78af6dfcb131a6481e\n" > "$SDK_DIR/licenses/android-sdk-license"
+          printf "84831b9409646a918e30573bab4c9c91346d8abd\n" > "$SDK_DIR/licenses/android-sdk-preview-license"
+          yes | "$CMDLINE_BIN/sdkmanager" --sdk_root="$SDK_DIR" --licenses > /dev/null 2>&1 || true
+
+          # 5. Install platform 35 and build tools
+          echo "Installing platforms;android-35 and build-tools;35.0.0..."
+          "$CMDLINE_BIN/sdkmanager" --sdk_root="$SDK_DIR" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+          echo "=== Android SDK setup completed successfully ==="
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
@@ -55,17 +104,25 @@ jobs:
           APK_NAME="Jafr-${VERSION_NAME}.apk"
           APK_PATH="app/build/outputs/apk/release/${APK_NAME}"
 
+          # Read release notes if file exists
+          NOTES="نسخه جدید برنامه جفر منتشر شد"
+          if [ -f "release_notes.txt" ]; then
+            CUSTOM_NOTES=$(cat release_notes.txt | tr -d '\r')
+            if [ -n "$CUSTOM_NOTES" ]; then
+              NOTES="$CUSTOM_NOTES"
+            fi
+          fi
+
           # 1) ایجاد Release در گیت‌تی
           RELEASE_RESPONSE=$(curl -s -X POST \
             -H "Authorization: token ${GITHUB_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "{\"tag_name\":\"${VERSION_NAME}\",\"name\":\"${VERSION_NAME}\",\"body\":\"نسخه جدید برنامه جفر منتشر شد\",\"draft\":false,\"prerelease\":false}" \
+            -d "{\"tag_name\":\"${VERSION_NAME}\",\"name\":\"${VERSION_NAME}\",\"body\":$(python3 -c 'import json, sys; print(json.dumps(sys.argv[1]))' "$NOTES"),\"draft\":false,\"prerelease\":false}" \
             "${SERVER_URL}/api/v1/repos/${REPO}/releases")
 
           RELEASE_ID=$(echo "$RELEASE_RESPONSE" | grep -oP '"id":\s*\K[0-9]+' | head -1)
 
           if [ -z "$RELEASE_ID" ]; then
-            # اگر از قبل ریلیز وجود داشت، ID آن را می‌گیریم
             RELEASE_ID=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
               "${SERVER_URL}/api/v1/repos/${REPO}/releases/tags/${VERSION_NAME}" | grep -oP '"id":\s*\K[0-9]+' | head -1)
           fi
@@ -92,13 +149,21 @@ jobs:
           echo "VERSION_CODE=$VERSION_CODE, VERSION_NAME=$VERSION_NAME"
 
           python3 - "$VERSION_CODE" "$VERSION_NAME" "$SERVER_URL" "$REPO" <<'PYEOF'
-          import json, sys
+          import json, sys, os
           vc, vn, server_url, repo = int(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4]
+
+          notes = "به‌روزرسانی خودکار برنامه جفر"
+          if os.path.exists("release_notes.txt"):
+              with open("release_notes.txt", "r", encoding="utf-8") as f:
+                  custom = f.read().strip()
+                  if custom:
+                      notes = custom
+
           data = {
               "versionCode": vc,
               "versionName": vn,
               "url": f"{server_url}/{repo}/releases/download/{vn}/Jafr-{vn}.apk",
-              "releaseNotes": "به‌روزرسانی خودکار برنامه جفر",
+              "releaseNotes": notes,
               "isForceUpdate": False,
           }
           with open("update.json", "w", encoding="utf-8") as f:
@@ -111,11 +176,16 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         env:
           VERSION_NAME: ${{ github.ref_name }}
+          SERVER_URL: ${{ github.server_url }}
+          REPO: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           git config --global user.name "Gitea Actions"
           git config --global user.email "actions@git.mizbanplatform.ir"
+          git fetch origin master
           git checkout master
+          git pull origin master --rebase || true
           git add update.json
           git commit -m "release ${VERSION_NAME}: update update.json" || echo "nothing to commit"
-          git push origin HEAD:master
+          git push "https://${GITHUB_TOKEN}@${SERVER_URL#*://}/${REPO}.git" master
