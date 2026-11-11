@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.window.Dialog
 import com.oqba26.jafr.data.AppDatabase
 import com.oqba26.jafr.model.Screen
@@ -27,18 +28,23 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
+
+    private lateinit var updateManager: UpdateManager
+    private var historyManagerInstance: HistoryManager? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val settingsManager = SettingsManager(this)
+        val settingsManager = SettingsManager(applicationContext)
+        updateManager = UpdateManager(applicationContext)
         
         setContent {
             val database = remember { AppDatabase.getDatabase(applicationContext) }
             val historyManager = remember {
                 HistoryManager(
                     historyDao = database.historyDao(),
-                    getDeviceId = { settingsManager.getDeviceId() }
-                )
+                    getDeviceId = settingsManager::getDeviceId
+                ).also { historyManagerInstance = it }
             }
             val selectedFont by settingsManager.selectedFont.collectAsState(initial = "vazirmatn")
             val defaultTypeStr by settingsManager.defaultType.collectAsState(initial = "JAFR_15")
@@ -66,15 +72,14 @@ class MainActivity : ComponentActivity() {
 
             val fontFamily = remember(selectedFont) { getFontFamily(selectedFont) }
             val customTypography = remember(fontFamily) { createTypography(fontFamily) }
-            var currentScreen by remember { mutableStateOf(Screen.CALCULATOR) }
-            var selectedType by remember { mutableStateOf(AbjadType.JAFR_15) }
-            var calculatorText by remember { mutableStateOf("") }
-            var showExitDialog by remember { mutableStateOf(value = false) }
+            var currentScreen by rememberSaveable { mutableStateOf(Screen.CALCULATOR) }
+            var selectedType by rememberSaveable { mutableStateOf(AbjadType.JAFR_15) }
+            var calculatorText by rememberSaveable { mutableStateOf("") }
+            var showExitDialog by rememberSaveable { mutableStateOf(false) }
             var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
             var downloadProgress by remember { mutableFloatStateOf(0f) }
             var isDownloading by remember { mutableStateOf(value = false) }
             val scope = rememberCoroutineScope()
-            val updateManager = remember { UpdateManager(this@MainActivity) }
 
             // Update selectedType when defaultType or visibleTypes change
             LaunchedEffect(defaultType, visibleTypes) {
@@ -252,5 +257,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        updateManager.cleanup()
+        historyManagerInstance?.close()
     }
 }

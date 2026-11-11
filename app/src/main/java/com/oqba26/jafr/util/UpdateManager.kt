@@ -27,6 +27,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -43,9 +45,14 @@ data class UpdateInfo(
     val isForceUpdate: Boolean = false,
 )
 
-class UpdateManager(private val context: Context) {
+class UpdateManager(context: Context) {
 
-    private val updateUrl = "https://raw.githubusercontent.com/oqba26/Jafr/master/update.json"
+    private val context: Context = context.applicationContext
+    // اولویت اول سرور داخلی گیت‌تی (مناسب برای شرایط قطعی اینترنت بین‌الملل)؛ اولویت دوم سرور گیت‌هاب
+    private val updateUrls = listOf(
+        "https://git.mizbanplatform.ir/oqba26/Jafr/raw/branch/master/update.json",
+        "https://raw.githubusercontent.com/oqba26/Jafr/master/update.json"
+    )
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -58,46 +65,60 @@ class UpdateManager(private val context: Context) {
         }
     }
 
+    private val updateScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var activeReceiver: BroadcastReceiver? = null
+
+    fun cleanup() {
+        activeReceiver?.let {
+            try {
+                context.unregisterReceiver(it)
+            } catch (_: Exception) {}
+            activeReceiver = null
+        }
+        updateScope.cancel()
+        client.close()
+    }
+
     suspend fun checkForUpdate(): UpdateInfo? = withContext(Dispatchers.IO) {
         if (!isNetworkAvailable()) {
             Log.d("UpdateManager", "Network not available")
             return@withContext null
         }
 
-        try {
-            // جلوگیری از کش شدن پاسخ توسط سرور یا پروکسی
-            val timestamp = System.currentTimeMillis()
-            val urlWithParams = if (updateUrl.contains("?")) "$updateUrl&t=$timestamp" else "$updateUrl?t=$timestamp"
+        val timestamp = System.currentTimeMillis()
+        for (baseUrl in updateUrls) {
+            try {
+                // جلوگیری از کش شدن پاسخ توسط سرور یا پروکسی
+                val urlWithParams = if (baseUrl.contains("?")) "$baseUrl&t=$timestamp" else "$baseUrl?t=$timestamp"
 
-            Log.d("UpdateManager", "Checking for update at: $urlWithParams")
-            val response = client.get(urlWithParams)
-            Log.d("UpdateManager", "Response status: ${response.status}")
+                Log.d("UpdateManager", "Checking for update at: $urlWithParams")
+                val response = client.get(urlWithParams)
+                Log.d("UpdateManager", "Response status: ${response.status}")
 
-            if (response.status.value !in 200..299) {
-                Log.e("UpdateManager", "Update check failed with status: ${response.status}")
-                return@withContext null
+                if (response.status.value in 200..299) {
+                    val responseText: String = response.bodyAsText()
+                    Log.d("UpdateManager", "Response body: $responseText")
+
+                    val updateInfo: UpdateInfo = json.decodeFromString(responseText)
+
+                    val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+                    val currentVersionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        pInfo.longVersionCode.toInt()
+                    } else {
+                        @Suppress("DEPRECATION")
+                        pInfo.versionCode
+                    }
+
+                    Log.d("UpdateManager", "Current version: $currentVersionCode, Server version: ${updateInfo.versionCode}")
+
+                    if (updateInfo.versionCode > currentVersionCode) {
+                        return@withContext updateInfo
+                    }
+                    return@withContext null
+                }
+            } catch (e: Exception) {
+                Log.w("UpdateManager", "Failed checking update from $baseUrl, trying next mirror...", e)
             }
-
-            val responseText: String = response.bodyAsText()
-            Log.d("UpdateManager", "Response body: $responseText")
-
-            val updateInfo: UpdateInfo = json.decodeFromString(responseText)
-
-            val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-            val currentVersionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                pInfo.longVersionCode.toInt()
-            } else {
-                @Suppress("DEPRECATION")
-                pInfo.versionCode
-            }
-
-            Log.d("UpdateManager", "Current version: $currentVersionCode, Server version: ${updateInfo.versionCode}")
-
-            if (updateInfo.versionCode > currentVersionCode) {
-                return@withContext updateInfo
-            }
-        } catch (e: Exception) {
-            Log.e("UpdateManager", "Error checking for update", e)
         }
         null
     }
@@ -145,6 +166,13 @@ class UpdateManager(private val context: Context) {
             return -1L
         }
 
+        activeReceiver?.let {
+            try {
+                context.unregisterReceiver(it)
+            } catch (_: Exception) {}
+            activeReceiver = null
+        }
+
         val onComplete = object : BroadcastReceiver() {
             override fun onReceive(receiverContext: Context, intent: Intent) {
                 val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)
@@ -155,7 +183,7 @@ class UpdateManager(private val context: Context) {
                         val statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
                         val status = cursor.getInt(statusIndex)
                         if (status == DownloadManager.STATUS_SUCCESSFUL) {
-                            CoroutineScope(Dispatchers.Main).launch {
+                            updateScope.launch {
                                 // اطمینان از اتمام کامل نوشتن فایل روی حافظه
                                 val targetFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
                                 var attempts = 0
@@ -183,6 +211,9 @@ class UpdateManager(private val context: Context) {
                     }
                     try {
                         receiverContext.unregisterReceiver(this)
+                        if (activeReceiver === this) {
+                            activeReceiver = null
+                        }
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
@@ -190,6 +221,7 @@ class UpdateManager(private val context: Context) {
             }
         }
 
+        activeReceiver = onComplete
         val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
         ContextCompat.registerReceiver(context, onComplete, filter, ContextCompat.RECEIVER_EXPORTED)
 

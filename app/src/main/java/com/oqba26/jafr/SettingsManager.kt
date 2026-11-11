@@ -1,8 +1,6 @@
 package com.oqba26.jafr
 
-import android.annotation.SuppressLint
 import android.content.Context
-import android.provider.Settings
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -42,18 +40,7 @@ class SettingsManager(private val context: Context) {
         preferences[SHOW_WASAIT_KEY] ?: false
     }
 
-    @SuppressLint("HardwareIds")
     fun getDeviceId(): String {
-        val androidId = try {
-            Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
-        } catch (_: Exception) {
-            null
-        }
-
-        if (!androidId.isNullOrBlank() && (androidId != "9774d56d682e549c")) {
-            return androidId
-        }
-
         val prefs = context.getSharedPreferences("jafr_prefs", Context.MODE_PRIVATE)
         var savedId = prefs.getString("device_id", null)
         if (savedId.isNullOrBlank()) {

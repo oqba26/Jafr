@@ -1,15 +1,4 @@
-# Gson rules
--keepattributes Signature
--keepattributes *Annotation*
--dontwarn sun.misc.**
--keep class com.google.gson.** { *; }
--keep class com.google.gson.reflect.TypeToken
--keep class * extends com.google.gson.reflect.TypeToken
--keepclassmembers class * {
-    @com.google.gson.annotations.SerializedName <fields>;
-}
-
-# Keep Model Classes (for Gson serialization/deserialization)
+# Keep Model Classes
 -keep class com.oqba26.jafr.model.** { *; }
 -keep class com.oqba26.jafr.AbjadType { *; }
 

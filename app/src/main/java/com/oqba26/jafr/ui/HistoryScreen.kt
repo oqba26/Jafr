@@ -2,7 +2,6 @@ package com.oqba26.jafr.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -18,16 +17,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.oqba26.jafr.AbjadUtils
 import com.oqba26.jafr.HistoryManager
 import com.oqba26.jafr.NadhiraType
+import com.oqba26.jafr.model.HistoryItem
+import com.oqba26.jafr.ui.components.*
 import com.oqba26.jafr.util.JafrNumericalUtils
 import kotlinx.coroutines.launch
-import com.oqba26.jafr.model.HistoryItem
 import saman.zamani.persiandate.PersianDate
 
 @Composable
@@ -39,10 +37,6 @@ fun HistoryScreen(
     val coroutineScope = rememberCoroutineScope()
     var showDeleteAllDialog by remember { mutableStateOf(false) }
     var itemToDelete by remember { mutableStateOf<HistoryItem?>(null) }
-
-    var scale by remember { mutableFloatStateOf(1f) }
-    var offsetX by remember { mutableFloatStateOf(0f) }
-    var offsetY by remember { mutableFloatStateOf(0f) }
 
     // گروه‌بندی بر اساس نام شخص و سپس تاریخ
     val groupedHistory = remember(history) {
@@ -70,26 +64,7 @@ fun HistoryScreen(
     val expandedPersons = remember { mutableStateMapOf<String, Boolean>() }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .pointerInput(Unit) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    scale = (scale * zoom).coerceIn(1f, 3f)
-                    if (scale == 1f) {
-                        offsetX = 0f
-                        offsetY = 0f
-                    } else {
-                        offsetX += pan.x
-                        offsetY += pan.y
-                    }
-                }
-            }
-            .graphicsLayer(
-                scaleX = scale,
-                scaleY = scale,
-                translationX = offsetX,
-                translationY = offsetY
-            )
+        modifier = Modifier.fillMaxSize()
     ) {
         if (history.isNotEmpty()) {
             Row(

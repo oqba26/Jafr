@@ -11,6 +11,7 @@ import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -49,16 +50,27 @@ class HistoryManager(
     private val historyDao: HistoryDao,
     private val getDeviceId: () -> String,
 ) {
-    private val supabase = createSupabaseClient(
-        supabaseUrl = BuildConfig.SUPABASE_URL,
-        supabaseKey = BuildConfig.SUPABASE_KEY
-    ) {
-        install(Postgrest)
-    }
+    private val supabase = if (BuildConfig.SUPABASE_URL.isNotBlank() && BuildConfig.SUPABASE_KEY.isNotBlank()) {
+        try {
+            createSupabaseClient(
+                supabaseUrl = BuildConfig.SUPABASE_URL,
+                supabaseKey = BuildConfig.SUPABASE_KEY
+            ) {
+                install(Postgrest)
+            }
+        } catch (e: Exception) {
+            Log.e("HistoryManager", "Error initializing Supabase client", e)
+            null
+        }
+    } else null
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val _historyList = MutableStateFlow<List<HistoryItem>>(emptyList())
     val historyList: StateFlow<List<HistoryItem>> = _historyList.asStateFlow()
+
+    fun close() {
+        scope.cancel()
+    }
 
     init {
         // 1. Local-First: Collect local Room DB items continuously
@@ -104,10 +116,11 @@ class HistoryManager(
             try {
                 val devId = getDeviceId()
                 if (devId.isEmpty()) return@withContext
+                val client = supabase ?: return@withContext
 
                 // Fetch remote items strictly for THIS deviceId
                 val dtos = try {
-                    supabase.from("jafr_history")
+                    client.from("jafr_history")
                         .select {
                             filter { eq("device_id", devId) }
                             order("id", Order.DESCENDING)
@@ -202,7 +215,7 @@ class HistoryManager(
                         timestamp = item.timestamp,
                         deviceId = devId
                     )
-                    supabase.from("jafr_history").insert(dto)
+                    supabase?.from("jafr_history")?.insert(dto)
                 } catch (e: Exception) {
                     Log.e("HistoryManager", "Error inserting to Supabase", e)
                 }
@@ -230,7 +243,7 @@ class HistoryManager(
                 // Delete remotely from Supabase strictly filtering by device_id
                 if (item != null && devId.isNotEmpty()) {
                     try {
-                        supabase.from("jafr_history").delete {
+                        supabase?.from("jafr_history")?.delete {
                             filter {
                                 eq("device_id", devId)
                                 eq("timestamp", item.timestamp)
@@ -258,7 +271,7 @@ class HistoryManager(
                 // 2. Delete ONLY this device's records from Supabase
                 if (devId.isNotEmpty()) {
                     try {
-                        supabase.from("jafr_history").delete {
+                        supabase?.from("jafr_history")?.delete {
                             filter { eq("device_id", devId) }
                         }
                     } catch (e: Exception) {

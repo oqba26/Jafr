@@ -38,8 +38,8 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        val supabaseUrl = getProp("SUPABASE_URL") ?: "https://ftufsygeartwukonclkz.supabase.co"
-        val supabaseKey = getProp("SUPABASE_KEY") ?: "sb_publishable_H4mAU1Ds-vZ22HwMSfCaBQ_QjBfmRd5"
+        val supabaseUrl = getProp("SUPABASE_URL") ?: ""
+        val supabaseKey = getProp("SUPABASE_KEY") ?: ""
 
         buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
         buildConfigField("String", "SUPABASE_KEY", "\"$supabaseKey\"")
@@ -102,9 +102,9 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.persiandate)
     implementation(libs.datastore)
-    implementation(libs.gson)
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
