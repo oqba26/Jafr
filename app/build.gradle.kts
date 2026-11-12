@@ -11,7 +11,7 @@ plugins {
 
 android {
     namespace = "com.oqba26.jafr"
-    compileSdk = 35
+    compileSdk = 34
 
     val keystorePropertiesFile = rootProject.file("keystore.properties")
     val keystoreProperties = Properties()
@@ -32,7 +32,7 @@ android {
     defaultConfig {
         applicationId = "com.oqba26.jafr"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 34
         versionCode = 11
         versionName = "1.2.7"
 
