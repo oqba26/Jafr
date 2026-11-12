@@ -11,8 +11,7 @@ import com.oqba26.jafr.Jafr15Result
 import com.oqba26.jafr.NadhiraType
 import com.oqba26.jafr.TabayeAnalysis
 import com.oqba26.jafr.model.HistoryItem
-import com.oqba26.jafr.util.JafrNumericalResult
-import com.oqba26.jafr.util.JafrNumericalUtils
+import com.oqba26.jafr.util.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -56,7 +55,35 @@ class AbjadCalculatorViewModel(
     private val _tabayeResult = MutableStateFlow<TabayeAnalysis?>(null)
     val tabayeResult: StateFlow<TabayeAnalysis?> = _tabayeResult.asStateFlow()
 
+    // اسرار و محاسبات مستخرج از کتاب مفتاح طلاسم کنوز
+    private val _muwakkilResult = MutableStateFlow<MuwakkilResult?>(null)
+    val muwakkilResult: StateFlow<MuwakkilResult?> = _muwakkilResult.asStateFlow()
+
+    private val _kawakibHourInfo = MutableStateFlow<KawakibHourInfo?>(null)
+    val kawakibHourInfo: StateFlow<KawakibHourInfo?> = _kawakibHourInfo.asStateFlow()
+
+    private val _rijalAlGhaibInfo = MutableStateFlow<RijalAlGhaibInfo?>(null)
+    val rijalAlGhaibInfo: StateFlow<RijalAlGhaibInfo?> = _rijalAlGhaibInfo.asStateFlow()
+
+    private val _tabayeMizanResult = MutableStateFlow<TabayeMizanResult?>(null)
+    val tabayeMizanResult: StateFlow<TabayeMizanResult?> = _tabayeMizanResult.asStateFlow()
+
+    private val _ancientScriptResult = MutableStateFlow<AncientScriptResult?>(null)
+    val ancientScriptResult: StateFlow<AncientScriptResult?> = _ancientScriptResult.asStateFlow()
+
+    private val _selectedOfaqSize = MutableStateFlow(3)
+
+    private val _ofaqExtendedResult = MutableStateFlow<OfaqExtendedResult?>(null)
+    val ofaqExtendedResult: StateFlow<OfaqExtendedResult?> = _ofaqExtendedResult.asStateFlow()
+
     private var lastSavedText: String = ""
+
+    data class StateInputs(
+        val raw: String,
+        val type: AbjadType,
+        val nadhira: NadhiraType,
+        val ofaqSize: Int
+    )
 
     init {
         // Continuous asynchronous calculation pipeline off the main thread
@@ -64,10 +91,11 @@ class AbjadCalculatorViewModel(
             combine(
                 _rawText,
                 _selectedType,
-                _selectedNadhira
-            ) { raw, type, nadhira ->
-                Triple(raw, type, nadhira)
-            }.collectLatest { (raw, type, nadhira) ->
+                _selectedNadhira,
+                _selectedOfaqSize
+            ) { raw, type, nadhira, ofaqSize ->
+                StateInputs(raw, type, nadhira, ofaqSize)
+            }.collectLatest { (raw, type, nadhira, ofaqSize) ->
                 withContext(Dispatchers.Default) {
                     val clean = AbjadUtils.stripYaHoo(raw)
                     _cleanText.value = clean
@@ -81,12 +109,32 @@ class AbjadCalculatorViewModel(
                         _jafrResult.value = null
                         _jafrNumericalResult.value = null
                         _tabayeResult.value = null
+                        _muwakkilResult.value = null
+                        _kawakibHourInfo.value = null
+                        _rijalAlGhaibInfo.value = null
+                        _tabayeMizanResult.value = null
+                        _ancientScriptResult.value = null
+                        _ofaqExtendedResult.value = null
                         return@withContext
                     }
 
                     // Calculate basic Abjad result
                     _abjadResult.value = AbjadUtils.calculate(clean, type)
                     _tabayeResult.value = AbjadUtils.analyzeTabaye(clean)
+
+                    // محاسبات مفتاح طلاسم کنوز
+                    _kawakibHourInfo.value = MiftahJafrUtils.calculateCurrentKawakibHour()
+                    _rijalAlGhaibInfo.value = MiftahJafrUtils.calculateRijalAlGhaib()
+                    _tabayeMizanResult.value = MiftahJafrUtils.calculateTabayeMizan(clean)
+                    _ancientScriptResult.value = MiftahJafrUtils.convertToAncientScript(clean)
+
+                    val names = AbjadUtils.extractNames(clean)
+                    val pName = names.first ?: clean.take(8)
+                    val mName = names.second ?: "حوا"
+                    _muwakkilResult.value = MiftahJafrUtils.extractMuwakkil(pName, mName)
+
+                    val totalSum = AbjadUtils.calculate(clean, AbjadType.KABIR).total
+                    _ofaqExtendedResult.value = MiftahJafrUtils.generateOfaqExtended(totalSum, ofaqSize)
 
                     // Calculate Jafr 15 result
                     if (type == AbjadType.JAFR_15 && complete) {
@@ -148,6 +196,10 @@ class AbjadCalculatorViewModel(
 
     fun onNadhiraSelected(nadhira: NadhiraType) {
         _selectedNadhira.value = nadhira
+    }
+
+    fun onOfaqSizeSelected(size: Int) {
+        _selectedOfaqSize.value = size
     }
 
     companion object {

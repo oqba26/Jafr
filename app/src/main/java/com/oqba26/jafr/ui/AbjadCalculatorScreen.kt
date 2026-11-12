@@ -95,6 +95,14 @@ fun AbjadCalculatorScreen(
     val jafrNumericalResult by viewModel.jafrNumericalResult.collectAsState()
     val tabayeResult by viewModel.tabayeResult.collectAsState()
 
+    // ویژگی‌های استخراج‌شده از کتاب مفتاح طلاسم کنوز
+    val muwakkilResult by viewModel.muwakkilResult.collectAsState()
+    val kawakibHourInfo by viewModel.kawakibHourInfo.collectAsState()
+    val rijalAlGhaibInfo by viewModel.rijalAlGhaibInfo.collectAsState()
+    val tabayeMizanResult by viewModel.tabayeMizanResult.collectAsState()
+    val ancientScriptResult by viewModel.ancientScriptResult.collectAsState()
+    val ofaqExtendedResult by viewModel.ofaqExtendedResult.collectAsState()
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -201,6 +209,42 @@ fun AbjadCalculatorScreen(
                     item {
                         JafrRulesCard(cleanUserText)
                     }
+
+                    // کارت‌های استخراج‌شده از کتاب مفتاح طلاسم کنوز
+                    muwakkilResult?.let { mw ->
+                        item {
+                            MuwakkilCard(mw)
+                        }
+                    }
+                    kawakibHourInfo?.let { kh ->
+                        item {
+                            KawakibHoursCard(kh)
+                        }
+                    }
+                    rijalAlGhaibInfo?.let { rg ->
+                        item {
+                            RijalAlGhaibCard(rg)
+                        }
+                    }
+                    tabayeMizanResult?.let { tm ->
+                        item {
+                            TabayeMizanCard(tm)
+                        }
+                    }
+                    ancientScriptResult?.let { ascr ->
+                        item {
+                            AncientScriptCard(ascr)
+                        }
+                    }
+                    ofaqExtendedResult?.let { ofq ->
+                        item {
+                            OfaqExtendedCard(
+                                result = ofq,
+                                onSizeChange = { viewModel.onOfaqSizeSelected(it) }
+                            )
+                        }
+                    }
+
                     items(jResult.rows) { row ->
                         JafrRowCard(row)
                     }
@@ -241,6 +285,34 @@ fun AbjadCalculatorScreen(
                 ) {
                     item {
                         JafrNumericalCard(numRes)
+                    }
+                    ofaqExtendedResult?.let { ofq ->
+                        item {
+                            OfaqExtendedCard(
+                                result = ofq,
+                                onSizeChange = { viewModel.onOfaqSizeSelected(it) }
+                            )
+                        }
+                    }
+                    muwakkilResult?.let { mw ->
+                        item {
+                            MuwakkilCard(mw)
+                        }
+                    }
+                    kawakibHourInfo?.let { kh ->
+                        item {
+                            KawakibHoursCard(kh)
+                        }
+                    }
+                    rijalAlGhaibInfo?.let { rg ->
+                        item {
+                            RijalAlGhaibCard(rg)
+                        }
+                    }
+                    tabayeMizanResult?.let { tm ->
+                        item {
+                            TabayeMizanCard(tm)
+                        }
                     }
                     val tabaye = tabayeResult
                     if (tabaye != null) {
@@ -328,6 +400,24 @@ fun AbjadCalculatorScreen(
                         if (tabaye != null) {
                             item {
                                 TabayeCard(tabaye)
+                            }
+                        }
+
+                        tabayeMizanResult?.let { tm ->
+                            item {
+                                TabayeMizanCard(tm)
+                            }
+                        }
+
+                        ancientScriptResult?.let { ascr ->
+                            item {
+                                AncientScriptCard(ascr)
+                            }
+                        }
+
+                        kawakibHourInfo?.let { kh ->
+                            item {
+                                KawakibHoursCard(kh)
                             }
                         }
 
