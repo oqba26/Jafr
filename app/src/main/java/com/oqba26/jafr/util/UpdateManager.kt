@@ -114,7 +114,7 @@ class UpdateManager(context: Context) {
                     if (updateInfo.versionCode > currentVersionCode) {
                         return@withContext updateInfo
                     }
-                    return@withContext null
+                    Log.d("UpdateManager", "No newer version on $baseUrl (current: $currentVersionCode, remote: ${updateInfo.versionCode}), checking next mirror if available")
                 }
             } catch (e: Exception) {
                 Log.w("UpdateManager", "Failed checking update from $baseUrl, trying next mirror...", e)
