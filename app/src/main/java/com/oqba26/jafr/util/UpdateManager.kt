@@ -320,7 +320,13 @@ class UpdateManager(context: Context) {
             context.startActivity(intent)
         } catch (e: Exception) {
             Log.e("UpdateManager", "Error installing APK", e)
-            Toast.makeText(context, "خطا در اجرای فایل نصب: ${e.localizedMessage ?: e.message}", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "خطا در اجرای خودکار نصاب: ${e.localizedMessage ?: e.message}", Toast.LENGTH_LONG).show()
+            try {
+                val browserIntent = Intent(Intent.ACTION_VIEW, "https://git.mizbanplatform.ir/oqba26/Jafr/releases".toUri()).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(browserIntent)
+            } catch (_: Exception) {}
         }
     }
 
