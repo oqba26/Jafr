@@ -336,8 +336,9 @@ object MiftahJafrUtils {
             else -> "جنوب‌شرقی" to 135f
         }
 
-        val advice = "در روز $lunarDay ماه قمری، رجال‌الغیب در سمت «$direction» مستقر هستند. " +
-                "بر طبق تعالیم صفحه ۱۴۰ کتاب مفتاح طلاسم کنوز، در هنگام انجام محاسبات جفری، کتابت وفق یا قرائت عزایم، " +
+        val dayStr = AbjadUtils.toPersianNumber(lunarDay)
+        val advice = "در روز $dayStr ماه قمری، رجال‌الغیب در سمت «$direction» مستقر هستند. " +
+                "در هنگام انجام محاسبات جفری، کتابت وفق یا قرائت عزایم، " +
                 "شایسته است پشت به جهت $direction و رو به قبله بنشینید تا از آفات و سنگینی مصون بمانید."
 
         return RijalAlGhaibInfo(
@@ -387,7 +388,7 @@ object MiftahJafrUtils {
             Element.EARTH -> Element.AIR to listOf('ب', 'و', 'ی', 'ن', 'ص', 'ت', 'ض')
         }
 
-        val advice = "بر اساس دستور صفحه ۱۳۲ و ۱۳۸ کتاب مفتاح طلاسم کنوز: از آنجا که طالع این متن دارای غلبه «${dominant.label}» است، " +
+        val advice = "بر اساس توازن طبایع و موازین جفر: از آنجا که طالع این متن دارای غلبه «${dominant.label}» است، " +
                 "جهت رفع حرارت یا خشکی مفرط و ایجاد اعتدال روحانی، استفاده از حروف متمم «${counter.label}» (${balancing.joinToString("، ")}) " +
                 "و ممارست بر اسماء حسنای واجد این حروف در کنار وفق توصیه می‌شود."
 
@@ -470,7 +471,7 @@ object MiftahJafrUtils {
                 val r3 = JafrNumericalUtils.calculateNumericalJafr(totalSum.toString())
                 OfaqExtendedResult(
                     size = 3,
-                    title = "وفق مثلث ۳x۳ (بطن المجمع)",
+                    title = "وفق مثلث ۳×۳ (بطن المجمع)",
                     totalSum = r3.totalAbjad,
                     miftah = r3.miftah,
                     maghlaq = r3.maghlaq,
@@ -528,7 +529,7 @@ object MiftahJafrUtils {
 
         return OfaqExtendedResult(
             size = 4,
-            title = "وفق مربع ۴x۴ (لوح چهار در چهار)",
+            title = "وفق مربع ۴×۴ (لوح چهار در چهار)",
             totalSum = safeTotal,
             miftah = miftah,
             maghlaq = maghlaq,
@@ -537,7 +538,7 @@ object MiftahJafrUtils {
             kasr = kasr,
             kasrHouse = kasrText,
             matrix = matrix,
-            explanation = "وفق مربع ۴x۴ با مجموع اضلاع $safeTotal بر اساس دستور ص ۱۱۴ و ۲۱۸ کتاب مفتاح طلاسم کنوز تنظیم شده است."
+            explanation = "وفق مربع ۴×۴ با مجموع اضلاع ${AbjadUtils.toPersianNumber(safeTotal)} بر اساس قواعد اوفاق الواح تنظیم شده است."
         )
     }
 
@@ -572,18 +573,22 @@ object MiftahJafrUtils {
         val maghlaq = p[25]
         val adl = p[13] // قلب المخمس
 
+        val safeTotalStr = AbjadUtils.toPersianNumber(safeTotal)
+        val adlStr = AbjadUtils.toPersianNumber(adl)
+        val kasrStr = AbjadUtils.toPersianNumber(kasr)
+
         return OfaqExtendedResult(
             size = 5,
-            title = "وفق مخمس ۵x۵ (لوح پنج در پنج)",
+            title = "وفق مخمس ۵×۵ (لوح پنج در پنج)",
             totalSum = safeTotal,
             miftah = miftah,
             maghlaq = maghlaq,
             wafd = safeTotal,
             adl = adl,
             kasr = kasr,
-            kasrHouse = if (kasr == 0) "بدون کسر (تام)" else "کسر $kasr وارد بر خانه‌های تکمیلی",
+            kasrHouse = if (kasr == 0) "بدون کسر (تام)" else "کسر $kasrStr وارد بر خانه‌های تکمیلی",
             matrix = matrix,
-            explanation = "وفق مخمس ۵x۵ حاصل با قلب $adl و مجموع اضلاع $safeTotal بر طبق قواعد اوفاق کتاب مفتاح طلاسم کنوز."
+            explanation = "وفق مخمس ۵×۵ حاصل با قلب $adlStr و مجموع اضلاع $safeTotalStr بر طبق قواعد اوفاق و الواح جفری تنظیم شده است."
         )
     }
 }

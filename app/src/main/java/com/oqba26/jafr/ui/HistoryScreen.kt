@@ -272,6 +272,31 @@ fun HistoryItemFullCard(
                 JafrNumericalUtils.calculateNumericalJafr(cleanText)
             }
 
+            // محاسبات کارت‌های مفتاح طلاسم کنوز برای تاریخچه
+            val muwakkilResult = remember(cleanText) {
+                val names = AbjadUtils.extractNames(cleanText)
+                val pName = names.first ?: cleanText.take(8)
+                val mName = names.second ?: "حوا"
+                com.oqba26.jafr.util.MiftahJafrUtils.extractMuwakkil(pName, mName)
+            }
+            val kawakibHourInfo = remember {
+                com.oqba26.jafr.util.MiftahJafrUtils.calculateCurrentKawakibHour()
+            }
+            val rijalAlGhaibInfo = remember {
+                com.oqba26.jafr.util.MiftahJafrUtils.calculateRijalAlGhaib()
+            }
+            val tabayeMizanResult = remember(cleanText) {
+                com.oqba26.jafr.util.MiftahJafrUtils.calculateTabayeMizan(cleanText)
+            }
+            val ancientScriptResult = remember(cleanText) {
+                com.oqba26.jafr.util.MiftahJafrUtils.convertToAncientScript(cleanText)
+            }
+            var historyOfaqSize by remember { mutableStateOf(3) }
+            val ofaqResult = remember(cleanText, historyOfaqSize) {
+                val totalSum = AbjadUtils.calculate(cleanText, com.oqba26.jafr.AbjadType.KABIR).total
+                com.oqba26.jafr.util.MiftahJafrUtils.generateOfaqExtended(totalSum, historyOfaqSize)
+            }
+
             JafrAnswerCard(jafrResult)
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -295,6 +320,28 @@ fun HistoryItemFullCard(
 
             Spacer(modifier = Modifier.height(12.dp))
             JafrRulesCard(cleanText)
+
+            // نمایش کارت‌های جدید در تاریخچه
+            Spacer(modifier = Modifier.height(12.dp))
+            MuwakkilCard(muwakkilResult)
+
+            Spacer(modifier = Modifier.height(12.dp))
+            KawakibHoursCard(kawakibHourInfo)
+
+            Spacer(modifier = Modifier.height(12.dp))
+            RijalAlGhaibCard(rijalAlGhaibInfo)
+
+            Spacer(modifier = Modifier.height(12.dp))
+            TabayeMizanCard(tabayeMizanResult)
+
+            Spacer(modifier = Modifier.height(12.dp))
+            AncientScriptCard(ancientScriptResult)
+
+            Spacer(modifier = Modifier.height(12.dp))
+            OfaqExtendedCard(
+                result = ofaqResult,
+                onSizeChange = { historyOfaqSize = it }
+            )
 
             jafrResult.rows.forEach { row ->
                 Spacer(modifier = Modifier.height(8.dp))

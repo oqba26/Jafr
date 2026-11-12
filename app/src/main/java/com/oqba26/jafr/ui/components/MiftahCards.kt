@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.oqba26.jafr.AbjadUtils
 import com.oqba26.jafr.util.*
 
 @Composable
@@ -57,7 +58,7 @@ fun MuwakkilCard(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "استخراج موکل عمل و عزیمت (ص ۲۱۸)",
+                    text = "استخراج موکل عمل و عزیمت",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -111,7 +112,7 @@ fun MuwakkilCard(
                 )
                 InfoBadge(
                     label = "عدد ذکر (تکرار)",
-                    value = "${result.abjadCount} مرتبه",
+                    value = "${AbjadUtils.toPersianNumber(result.abjadCount)} مرتبه",
                     color = MaterialTheme.colorScheme.tertiary
                 )
                 InfoBadge(
@@ -132,12 +133,12 @@ fun MuwakkilCard(
                     .padding(10.dp)
             ) {
                 Text(
-                    text = "🌿 بخور منسوب (ص ۲۱۶): ${result.bukhoor}",
+                    text = "🌿 بخور منسوب: ${result.bukhoor}",
                     style = MaterialTheme.typography.bodySmall
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "💍 جامه و انگشتری (ص ۲۱۷): ${result.clothingAndRing}",
+                    text = "💍 جامه و انگشتری: ${result.clothingAndRing}",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
@@ -219,7 +220,7 @@ fun KawakibHoursCard(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "ساعات کواکب و اختیارات (ص ۲۲۰)",
+                        text = "ساعات کواکب و اختیارات",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -336,7 +337,7 @@ fun KawakibHoursCard(
                                         MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
                                 ) {
                                     Text(
-                                        text = "$time: $kawkab",
+                                        text = "${AbjadUtils.toPersianNumber(time)}: $kawkab",
                                         style = MaterialTheme.typography.labelSmall,
                                         modifier = Modifier.padding(6.dp),
                                         textAlign = TextAlign.Center
@@ -370,7 +371,7 @@ fun KawakibHoursCard(
                                         MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
                                 ) {
                                     Text(
-                                        text = "$time: $kawkab",
+                                        text = "${AbjadUtils.toPersianNumber(time)}: $kawkab",
                                         style = MaterialTheme.typography.labelSmall,
                                         modifier = Modifier.padding(6.dp),
                                         textAlign = TextAlign.Center
@@ -407,7 +408,7 @@ fun RijalAlGhaibCard(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "جهت رجال‌الغیب و موکلان جهات (ص ۱۴۰ و ۱۵۹)",
+                    text = "جهت رجال‌الغیب و موکلان جهات",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -440,12 +441,12 @@ fun RijalAlGhaibCard(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "موقعیت امروز (روز ${info.lunarDay} قمری):",
+                        text = "موقعیت امروز (روز ${AbjadUtils.toPersianNumber(info.lunarDay)} قمری):",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "جهت: «${info.directionName}» (${info.compassAngle.toInt()}°)",
+                        text = "جهت: «${info.directionName}» (${AbjadUtils.toPersianNumber(info.compassAngle.toInt())}°)",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
@@ -474,7 +475,7 @@ fun RijalAlGhaibCard(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "موکلان جهات اربعه (رئوس چهارگانه ص ۱۵۵-۱۵۹):",
+                        text = "موکلان جهات اربعه (رئوس چهارگانه):",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -513,7 +514,7 @@ fun TabayeMizanCard(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "موازنه طبایع و حروف متمم خنثی‌کننده (ص ۱۳۲-۱۳۸)",
+                    text = "موازنه طبایع و حروف متمم خنثی‌کننده",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -612,7 +613,7 @@ fun AncientScriptCard(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "مبدل اقلام رمزی و خطوط کهن (ص ۶۱-۸۹)",
+                        text = "مبدل اقلام رمزی و خطوط کهن",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -720,32 +721,43 @@ fun OfaqExtendedCard(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.GridOn,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = result.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                Icon(
+                    Icons.Default.GridOn,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = result.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            }
 
-                // سوئیچ اندازه وفق: ۳، ۴، ۵
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    listOf(3 to "مثلث", 4 to "مربع", 5 to "مخمس").forEach { (sz, label) ->
-                        FilterChip(
-                            selected = result.size == sz,
-                            onClick = { onSizeChange(sz) },
-                            label = { Text(label, fontSize = 10.sp) }
-                        )
-                    }
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // سوئیچ اندازه وفق: ۳، ۴، ۵ در یک ردیف مجزا و بدون فشرده‌شدن
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                listOf(
+                    3 to "مثلث (۳×۳)",
+                    4 to "مربع (۴×۴)",
+                    5 to "مخمس (۵×۵)"
+                ).forEach { (sz, label) ->
+                    FilterChip(
+                        selected = result.size == sz,
+                        onClick = { onSizeChange(sz) },
+                        label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
                 }
             }
 
@@ -774,7 +786,7 @@ fun OfaqExtendedCard(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = cell.toString(),
+                                    text = AbjadUtils.toPersianNumber(cell),
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -792,10 +804,10 @@ fun OfaqExtendedCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                InfoBadge(label = "مفتاح (ورود)", value = result.miftah.toString(), color = MaterialTheme.colorScheme.primary)
-                InfoBadge(label = "مغلاق (خروج)", value = result.maghlaq.toString(), color = MaterialTheme.colorScheme.secondary)
-                InfoBadge(label = "عدل (میانه)", value = result.adl.toString(), color = MaterialTheme.colorScheme.tertiary)
-                InfoBadge(label = "وفق (ضلع)", value = result.wafd.toString(), color = MaterialTheme.colorScheme.primary)
+                InfoBadge(label = "مفتاح (ورود)", value = AbjadUtils.toPersianNumber(result.miftah), color = MaterialTheme.colorScheme.primary)
+                InfoBadge(label = "مغلاق (خروج)", value = AbjadUtils.toPersianNumber(result.maghlaq), color = MaterialTheme.colorScheme.secondary)
+                InfoBadge(label = "عدل (میانه)", value = AbjadUtils.toPersianNumber(result.adl), color = MaterialTheme.colorScheme.tertiary)
+                InfoBadge(label = "وفق (ضلع)", value = AbjadUtils.toPersianNumber(result.wafd), color = MaterialTheme.colorScheme.primary)
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -849,7 +861,7 @@ private fun ElementPill(
         )
         Spacer(modifier = Modifier.width(6.dp))
         Text(
-            text = "$label: $count",
+            text = "$label: ${AbjadUtils.toPersianNumber(count)}",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
             color = color

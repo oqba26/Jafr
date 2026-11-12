@@ -103,8 +103,9 @@ object JafrNumericalUtils {
             "اسقاط ۲۸ (منزل قمر)" to manzel
         )
 
-        val explanation = "وفق ۳x۳ حاصل بر پایه قواعد خزانة الأسرار تنظیم شده است. " +
-                "مجموع اضلاع افقی، عمودی و قطری این وفق برابر با عدد کل ابجد ($safeTotal) می‌باشد."
+        val safeTotalStr = AbjadUtils.toPersianNumber(safeTotal)
+        val explanation = "وفق ۳×۳ حاصل بر پایه قواعد خزانة الأسرار تنظیم شده است. " +
+                "مجموع اضلاع افقی، عمودی و قطری این وفق برابر با عدد کل ابجد ($safeTotalStr) می‌باشد."
 
         return JafrNumericalResult(
             totalAbjad = safeTotal,

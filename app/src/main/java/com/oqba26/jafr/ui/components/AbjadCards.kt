@@ -27,9 +27,9 @@ import com.oqba26.jafr.TabayeAnalysis
 import com.oqba26.jafr.TopicAnalysis
 import com.oqba26.jafr.util.JafrNumericalResult
 
-val SaadBadgeColor = Color(0xFF66BB6A)
-val NahsBadgeColor = Color(0xFFEF5350)
-val NeutralBadgeColor = Color(0xFFFFCA28)
+val SaadBadgeColor = Color(0xFF2E7D32)
+val NahsBadgeColor = Color(0xFFC62828)
+val NeutralBadgeColor = Color(0xFFB45309)
 
 @Composable
 fun JafrAnswerCard(result: Jafr15Result) {
@@ -755,7 +755,7 @@ fun JafrNumericalCard(result: JafrNumericalResult) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "جفر عددی و وفق ۳x۳ (خزانة الأسرار)",
+                text = "جفر عددی و وفق ۳×۳ (خزانة الأسرار)",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
